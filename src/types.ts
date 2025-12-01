@@ -1,11 +1,12 @@
 import {
-  Tool as OpenAITool,
+  Tool as OpenAIToolDef,
   ResponseInputItem,
   ResponseOutputItem,
 } from "openai/resources/responses/responses.js";
 export type {
   ResponseInputItem,
   ResponseOutputItem,
+  Tool as OpenAIToolDef,
 } from "openai/resources/responses/responses.js";
 
 export type FunctionCallMessage = {
@@ -26,15 +27,14 @@ export type Message =
   | ResponseOutputItem
   | FunctionCallMessage
   | FunctionCallOutputMessage;
-export type OpenAIToolDef = OpenAITool;
 
 export type State = {
   messages: Message[];
-} & Record<string, any>;
+} & Record<string, unknown>;
 
 export type Store = {
   getState(): State;
-  dispatch(action: any): void;
+  dispatch(action: unknown): void;
 };
 
 export type AIModel = {

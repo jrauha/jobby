@@ -1,4 +1,4 @@
-import { Agent, State, Tool, getLastMessage } from "../src/index.ts";
+import { Agent, Tool } from "../src/index.ts";
 import z from "zod";
 
 async function main() {

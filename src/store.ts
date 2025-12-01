@@ -8,7 +8,7 @@ export function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "MODEL_OUTPUT":
       return { ...state, messages: [...state.messages, ...action.output] };
-    case "FUNCTION_CALL_OUTPUT":
+    case "FUNCTION_CALL_OUTPUT": {
       const fc: FunctionCallOutputMessage = {
         type: "function_call_output",
         call_id: action.call_id,
@@ -18,6 +18,7 @@ export function reducer(state: State, action: Action): State {
         ...state,
         messages: [...state.messages, fc],
       };
+    }
     default:
       return state;
   }
