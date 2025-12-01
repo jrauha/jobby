@@ -1,4 +1,4 @@
-import { State, Message, FunctionCallOutputMessage } from "./types";
+import { State, Message, FunctionCallOutputMessage, Store } from "./types";
 
 export type Action =
   | { type: "MODEL_OUTPUT"; output: Message[] }
@@ -33,7 +33,7 @@ export function initialState(instructions: string, input: string): State {
   };
 }
 
-export default class Store {
+export default class InMemoryStore implements Store {
   private state: State;
   private events: Action[] = [];
   private subs: Array<(s: State) => void> = [];

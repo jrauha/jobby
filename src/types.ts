@@ -37,6 +37,10 @@ export type Store = {
   dispatch(action: unknown): void;
 };
 
+export type Context = {
+  store: Store;
+};
+
 export type AIModel = {
   invoke(
     messages: Message[],
