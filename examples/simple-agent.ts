@@ -1,4 +1,4 @@
-import { Agent, Tool } from "../src/index.ts";
+import { Agent, AgentRunner, Tool } from "../src/index.ts";
 import z from "zod";
 
 async function main() {
@@ -19,7 +19,8 @@ async function main() {
     generateRandomNumberTool,
   ]);
 
-  const finalState = await agent.run(
+  const finalState = await AgentRunner.run(
+    agent,
     "Generate a random number between 1 and 100."
   );
   console.log("Final state:", finalState);

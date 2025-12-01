@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Agent } from "../src/agent";
+import { Agent, AgentRunner } from "../src/agent";
 import * as z from "zod";
 import { Tool } from "../src/tools";
 import { AIModel, Message, OpenAIToolDef } from "../src";
@@ -57,7 +57,7 @@ describe("Agent", () => {
       async (a) => `E:${a.text}`
     );
     const agent = new Agent("inst", model, [tool], 5);
-    const state = await agent.run("hello");
+    const state = await AgentRunner.run(agent, "Please echo a message.");
     const last = state.messages[state.messages.length - 1];
     expect(last).toMatchObject({
       type: "message",

@@ -1,8 +1,8 @@
 import { OpenAIModel } from "./model";
 import { Tool, ToolArgsParseError } from "./tools";
 import ToolRegistry from "./toolRegistry";
-import { State, Message, AIModel } from "./types";
-import Store, { initialState } from "./store";
+import { State, Message, AIModel, Context, Store } from "./types";
+import MemoryStore, { initialState } from "./store";
 import {
   getLastMessage,
   isAssistantMessage,
@@ -67,15 +67,27 @@ export class Agent {
     }
   }
 
-  async run(input: string): Promise<State> {
-    const store = new Store(initialState(this.instructions, input));
+  getInstructions(): string {
+    return this.instructions;
+  }
+
+  async run(ctx: Context): Promise<Context> {
     for (let i = 0; i < this.maxIterations; i++) {
-      await this.step(store);
-      const lm = getLastMessage(store.getState());
+      await this.step(ctx.store);
+      const lm = getLastMessage(ctx.store.getState());
       if (lm && isAssistantMessage(lm)) {
         break;
       }
     }
-    return store.getState();
+    return ctx;
+  }
+}
+
+export class AgentRunner {
+  static async run(agent: Agent, input: string): Promise<State> {
+    const store = new MemoryStore(initialState(agent.getInstructions(), input));
+    const ctx: Context = { store };
+    const finalCtx = await agent.run(ctx);
+    return finalCtx.store.getState();
   }
 }
