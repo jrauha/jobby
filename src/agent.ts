@@ -11,21 +11,32 @@ import {
 
 const DEFAULT_MAX_ITERATIONS = 10;
 
+export type AgentOptions = {
+  name: string;
+  instructions: string;
+  model: string | AIModel;
+  tools?: Tool[];
+  maxIterations?: number;
+};
+
 export class Agent {
-  private model: AIModel | OpenAIModel;
+  public readonly name;
+  private model: AIModel;
   private toolRegistry: ToolRegistry;
   private maxIterations: number;
   private instructions: string;
 
-  constructor(
-    instructions: string,
-    model: AIModel | OpenAIModel | string,
-    tools: Tool[] = [],
-    maxIterations: number = DEFAULT_MAX_ITERATIONS
-  ) {
+  constructor({
+    name,
+    instructions,
+    model,
+    tools,
+    maxIterations,
+  }: AgentOptions) {
+    this.name = name;
     this.model = typeof model === "string" ? new OpenAIModel(model) : model;
     this.toolRegistry = new ToolRegistry(tools);
-    this.maxIterations = maxIterations;
+    this.maxIterations = maxIterations ?? DEFAULT_MAX_ITERATIONS;
     this.instructions = instructions;
   }
 

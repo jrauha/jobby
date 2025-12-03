@@ -2,15 +2,12 @@ import { describe, it, expect } from "vitest";
 import { Agent, AgentRunner } from "../src/agent";
 import * as z from "zod";
 import { Tool } from "../src/tools";
-import { AIModel, Message, OpenAIToolDef } from "../src";
+import { AIModel, Message } from "../src";
 
 // Mock model that returns a function_call then an assistant message
 class MockModel implements AIModel {
   private calls = 0;
-  async invoke(
-    messages: Message[],
-    tools?: OpenAIToolDef[]
-  ): Promise<{ output: Message[] }> {
+  async invoke(): Promise<{ output: Message[] }> {
     this.calls++;
     if (this.calls === 1) {
       return {
@@ -56,7 +53,13 @@ describe("Agent", () => {
       z.object({ text: z.string() }),
       async (a) => `E:${a.text}`
     );
-    const agent = new Agent("inst", model, [tool], 5);
+    const agent = new Agent({
+      name: "name",
+      instructions: "inst",
+      model,
+      tools: [tool],
+      maxIterations: 5,
+    });
     const state = await AgentRunner.run(agent, "Please echo a message.");
     const last = state.messages[state.messages.length - 1];
     expect(last).toMatchObject({

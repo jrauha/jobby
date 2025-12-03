@@ -15,9 +15,12 @@ async function main() {
     }
   );
 
-  const agent = new Agent("You are a helpful assistant.", "gpt-4o-mini", [
-    generateRandomNumberTool,
-  ]);
+  const agent = new Agent({
+    name: "Number assistant",
+    instructions: "You are a helpful assistant.",
+    model: "gpt-4o-mini",
+    tools: [generateRandomNumberTool],
+  });
 
   const finalState = await AgentRunner.run(
     agent,
