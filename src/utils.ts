@@ -5,7 +5,9 @@ import {
   State,
 } from "./types";
 
-export function getLastMessage(state: State): Message | null {
+export function getLastMessage(
+  state: State<{ messages: Message[] }>
+): Message | null {
   const messages = state.messages;
   return messages.length === 0 ? null : (messages[messages.length - 1] ?? null);
 }

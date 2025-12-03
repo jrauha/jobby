@@ -1,8 +1,15 @@
 import { OpenAIModel } from "./model";
 import { Tool, ToolArgsParseError } from "./tools";
 import ToolRegistry from "./toolRegistry";
-import { State, Message, AIModel, Context, Store } from "./types";
-import MemoryStore, { initialState } from "./store";
+import {
+  State,
+  Message,
+  AIModel,
+  Context,
+  Store,
+  FunctionCallOutputMessage,
+} from "./types";
+import { InMemoryStore } from "./store";
 import {
   getLastMessage,
   isAssistantMessage,
@@ -10,6 +17,13 @@ import {
 } from "./utils";
 
 const DEFAULT_MAX_ITERATIONS = 10;
+
+export type AgentState = State<{ messages: Message[] }>;
+export type AgentContext = Context<Store<AgentState, AgentAction>>;
+
+export type AgentAction =
+  | { type: "MODEL_OUTPUT"; output: Message[] }
+  | { type: "FUNCTION_CALL_OUTPUT"; call_id: string; output: string };
 
 export type AgentOptions = {
   name: string;
@@ -40,7 +54,7 @@ export class Agent {
     this.instructions = instructions;
   }
 
-  private async step(store: Store): Promise<void> {
+  private async step(store: AgentContext["store"]): Promise<void> {
     const response = await this.model.invoke(
       store.getState().messages,
       this.toolRegistry.toDefinitions()
@@ -82,7 +96,7 @@ export class Agent {
     return this.instructions;
   }
 
-  async run(ctx: Context): Promise<Context> {
+  async run(ctx: AgentContext): Promise<AgentContext> {
     for (let i = 0; i < this.maxIterations; i++) {
       await this.step(ctx.store);
       const lm = getLastMessage(ctx.store.getState());
@@ -94,10 +108,45 @@ export class Agent {
   }
 }
 
+export function initialState(instructions: string, input: string): AgentState {
+  return {
+    messages: [
+      { role: "system", content: instructions },
+      { role: "user", content: input },
+    ],
+  };
+}
+
+export function agentReducer(
+  state: AgentState,
+  action: AgentAction
+): AgentState {
+  switch (action.type) {
+    case "MODEL_OUTPUT":
+      return { ...state, messages: [...state.messages, ...action.output] };
+    case "FUNCTION_CALL_OUTPUT": {
+      const fc: FunctionCallOutputMessage = {
+        type: "function_call_output",
+        call_id: action.call_id,
+        output: action.output,
+      };
+      return {
+        ...state,
+        messages: [...state.messages, fc],
+      };
+    }
+    default:
+      return state;
+  }
+}
+
 export class AgentRunner {
-  static async run(agent: Agent, input: string): Promise<State> {
-    const store = new MemoryStore(initialState(agent.getInstructions(), input));
-    const ctx: Context = { store };
+  static async run(agent: Agent, input: string): Promise<AgentState> {
+    const store = new InMemoryStore(
+      agentReducer,
+      initialState(agent.getInstructions(), input)
+    );
+    const ctx = { store };
     const finalCtx = await agent.run(ctx);
     return finalCtx.store.getState();
   }

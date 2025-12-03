@@ -1,39 +1,80 @@
 import { describe, expect, it } from "vitest";
-import Store, { initialState, type Action } from "../src/store";
+import { InMemoryStore } from "../src/store";
 
-describe("Store and reducer", () => {
-  it("initialState sets system and user messages", () => {
-    const s = initialState("instr", "hello");
+type TestState = {
+  count: number;
+  messages: Array<{ role: string; content: string }>;
+};
+
+type TestEvent =
+  | { type: "INCREMENT" }
+  | { type: "ADD_MESSAGE"; role: string; content: string };
+
+const reducer = (state: TestState, event: TestEvent): TestState => {
+  switch (event.type) {
+    case "INCREMENT":
+      return { ...state, count: state.count + 1 };
+    case "ADD_MESSAGE":
+      return {
+        ...state,
+        messages: [
+          ...state.messages,
+          { role: event.role, content: event.content },
+        ],
+      };
+    default:
+      return state;
+  }
+};
+
+describe("InMemoryStore", () => {
+  it("initial state is set and retrievable", () => {
+    const initial: TestState = {
+      count: 0,
+      messages: [
+        { role: "system", content: "instr" },
+        { role: "user", content: "hello" },
+      ],
+    };
+    const store = new InMemoryStore<TestState, TestEvent>(reducer, initial);
+    const s = store.getState();
+    expect(s.count).toBe(0);
     expect(s.messages.length).toBe(2);
     expect(s.messages[0]).toMatchObject({ role: "system", content: "instr" });
     expect(s.messages[1]).toMatchObject({ role: "user", content: "hello" });
   });
 
-  it("dispatch MODEL_OUTPUT appends messages and records events", () => {
-    const store = new Store(initialState("i", "u"));
-    store.dispatch({
-      type: "MODEL_OUTPUT",
-      output: [{ role: "assistant", type: "message", content: "ok" }],
+  it("dispatch updates state and records events", () => {
+    const store = new InMemoryStore<TestState, TestEvent>(reducer, {
+      count: 0,
+      messages: [],
     });
+    store.dispatch({ type: "INCREMENT" });
+    store.dispatch({ type: "ADD_MESSAGE", role: "assistant", content: "ok" });
     const st = store.getState();
-    expect(st.messages[st.messages.length - 1]).toMatchObject({
-      role: "assistant",
-      content: "ok",
-    });
+    expect(st.count).toBe(1);
+    expect(st.messages[0]).toMatchObject({ role: "assistant", content: "ok" });
     const events = store.getEvents();
-    expect(events.length).toBe(1);
+    expect(events.length).toBe(2);
+    // ensure events are a copy, not the internal array
+    events.push({ type: "INCREMENT" });
+    expect(store.getEvents().length).toBe(2);
   });
 
-  it("replay reproduces state from events", () => {
-    const init = initialState("i", "u");
-    const events: Action[] = [
-      {
-        type: "MODEL_OUTPUT",
-        output: [{ role: "assistant", type: "message", content: "ok" }],
-      },
-      { type: "FUNCTION_CALL_OUTPUT", call_id: "1", output: "res" },
-    ];
-    const final = Store.replay(init, events);
-    expect(final.messages.length).toBe(init.messages.length + 2);
+  it("subscribe notifies on state changes and can unsubscribe", () => {
+    const store = new InMemoryStore<TestState, TestEvent>(reducer, {
+      count: 0,
+      messages: [],
+    });
+    let notifiedCount = 0;
+    const unsubscribe = store.subscribe(() => {
+      notifiedCount += 1;
+    });
+    store.dispatch({ type: "INCREMENT" });
+    store.dispatch({ type: "ADD_MESSAGE", role: "user", content: "hi" });
+    expect(notifiedCount).toBe(2);
+    unsubscribe();
+    store.dispatch({ type: "INCREMENT" });
+    expect(notifiedCount).toBe(2);
   });
 });

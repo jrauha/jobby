@@ -1,50 +1,22 @@
-import { State, Message, FunctionCallOutputMessage, Store } from "./types";
+import { Store, StoreEvent, StoreReducer } from "./types";
 
-export type Action =
-  | { type: "MODEL_OUTPUT"; output: Message[] }
-  | { type: "FUNCTION_CALL_OUTPUT"; call_id: string; output: string };
-
-export function reducer(state: State, action: Action): State {
-  switch (action.type) {
-    case "MODEL_OUTPUT":
-      return { ...state, messages: [...state.messages, ...action.output] };
-    case "FUNCTION_CALL_OUTPUT": {
-      const fc: FunctionCallOutputMessage = {
-        type: "function_call_output",
-        call_id: action.call_id,
-        output: action.output,
-      };
-      return {
-        ...state,
-        messages: [...state.messages, fc],
-      };
-    }
-    default:
-      return state;
-  }
-}
-
-export function initialState(instructions: string, input: string): State {
-  return {
-    messages: [
-      { role: "system", content: instructions },
-      { role: "user", content: input },
-    ],
-  };
-}
-
-export default class InMemoryStore implements Store {
+export class InMemoryStore<State, Action extends StoreEvent> implements Store<
+  State,
+  Action
+> {
   private state: State;
   private events: Action[] = [];
   private subs: Array<(s: State) => void> = [];
+  private reducer: StoreReducer<State, Action>;
 
-  constructor(initial: State) {
+  constructor(reducer: StoreReducer<State, Action>, initial: State) {
     this.state = initial;
+    this.reducer = reducer;
   }
 
   dispatch(action: Action) {
     this.events.push(action);
-    this.state = reducer(this.state, action);
+    this.state = this.reducer(this.state, action);
     for (const s of this.subs) s(this.state);
   }
 
@@ -61,9 +33,5 @@ export default class InMemoryStore implements Store {
     return () => {
       this.subs = this.subs.filter((c) => c !== cb);
     };
-  }
-
-  static replay(initial: State, events: Action[]): State {
-    return events.reduce(reducer, initial);
   }
 }

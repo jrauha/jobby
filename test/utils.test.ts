@@ -5,13 +5,17 @@ import {
   isFunctionCallMessage,
 } from "../src/utils";
 
-import { initialState } from "../src/store";
-import { Message } from "../src";
+import { Message, State } from "../src";
 
 describe("utils", () => {
   it("getLastMessage returns last or null", () => {
-    const s = initialState("i", "u");
-    expect(getLastMessage(s)).toBeTruthy();
+    const s: State<{ messages: Message[] }> = {
+      messages: [
+        { role: "system", content: "sys" },
+        { role: "user", content: "hi" },
+      ],
+    };
+    expect(getLastMessage(s)).toMatchObject({ role: "user", content: "hi" });
     expect(getLastMessage({ messages: [] })).toBeNull();
   });
 

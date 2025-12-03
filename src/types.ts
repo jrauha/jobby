@@ -28,22 +28,27 @@ export type Message =
   | FunctionCallMessage
   | FunctionCallOutputMessage;
 
-export type State = {
-  messages: Message[];
-} & Record<string, unknown>;
-
-export type Store = {
-  getState(): State;
-  dispatch(action: unknown): void;
-};
-
-export type Context = {
-  store: Store;
-};
-
 export type AIModel = {
   invoke(
     messages: Message[],
     tools?: OpenAIToolDef[]
   ): Promise<{ output: Message[] }>;
+};
+
+/* Store types */
+
+export type State<T> = T & Record<string, unknown>;
+
+export type StoreEvent = object & { type: string };
+
+export type StoreReducer<S, A extends StoreEvent> = (state: S, action: A) => S;
+
+export type Store<S, A extends StoreEvent> = {
+  getState(): S;
+  getEvents(): A[];
+  dispatch(event: A): void;
+};
+
+export type Context<S> = {
+  store: S;
 };

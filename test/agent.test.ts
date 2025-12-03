@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Agent, AgentRunner } from "../src/agent";
+import { Agent, AgentRunner, AgentState, initialState } from "../src/agent";
 import * as z from "zod";
 import { Tool } from "../src/tools";
 import { AIModel, Message } from "../src";
@@ -76,5 +76,20 @@ describe("Agent", () => {
     expect(
       state.messages.some((m: Message) => m.type === "function_call_output")
     ).toBe(true);
+  });
+});
+
+describe("initialState", () => {
+  it("creates initial state with system and user messages", () => {
+    const state = initialState("You are an agent.", "Hello!");
+    expect(state.messages.length).toBe(2);
+    expect(state.messages[0]).toMatchObject({
+      role: "system",
+      content: "You are an agent.",
+    });
+    expect(state.messages[1]).toMatchObject({
+      role: "user",
+      content: "Hello!",
+    });
   });
 });
