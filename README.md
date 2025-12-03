@@ -1,6 +1,6 @@
-# Jobby — Minimal OpenAI agent micro-framework
+# Jobby — Lightweight OpenAI agent framework
 
-TypeScript micro-framework for building agentic workflows that orchestrate OpenAI models and tools across multi-step tasks.
+A lightweight TypeScript framework for creating agentic workflows powered by OpenAI models.
 
 ### Quick start
 
@@ -26,18 +26,30 @@ node --import=tsx examples/simple-agent.ts
 Minimal example agent
 
 ```ts
-import { Agent, Tool } from './src/index'
+import { Agent, AgentRunner, Tool } from './src/index'
 import z from 'zod'
 
-const generateRandomNumber = new Tool(
-  'generateRandomNumber',
-  'Generates a random number between min and max',
-  z.object({ min: z.number().int(), max: z.number().int() }),
-  async ({ min, max }) => `Generated random number: ${Math.floor(Math.random() * (max - min + 1)) + min}`
-)
+const generateRandomNumberTool = new Tool({
+  name: "generateRandomNumber",
+  description: "Generates a random number between min and max.",
+  input: z.object({
+    min: z.number().int(),
+    max: z.number().int(),
+  }),
+  func: ({ min, max }) => {
+    const randomNum = Math.floor(Math.random() * (max - min + 1)) + min;
+    return `Generated random number: ${randomNum}`;
+  },
+});
 
-const agent = new Agent('You are a helpful assistant.', 'gpt-4o-mini', [generateRandomNumber])
-await agent.run('Generate a random number between 1 and 100.')
+const agent = new Agent({
+  name: "Number assistant",
+  instructions: "You are a helpful assistant.",
+  model: "gpt-4o-mini",
+  tools: [generateRandomNumberTool],
+});
+
+await AgentRunner.run('Generate a random number between 1 and 100.')
 ```
 
 Files to inspect
