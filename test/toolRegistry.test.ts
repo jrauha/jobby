@@ -5,12 +5,12 @@ import * as z from "zod";
 
 describe("ToolRegistry", () => {
   it("registers and invokes tools", async () => {
-    const tool = new Tool(
-      "t1",
-      "d",
-      z.object({ a: z.string() }),
-      async (args) => `ok ${args.a}`
-    );
+    const tool = new Tool({
+      name: "t1",
+      description: "d",
+      input: z.object({ a: z.string() }),
+      func: async (args) => `ok ${args.a}`,
+    });
     const reg = new ToolRegistry([tool]);
     const res = await reg.invoke("t1", JSON.stringify({ a: "x" }));
     expect(res).toBe("ok x");
@@ -24,12 +24,12 @@ describe("ToolRegistry", () => {
   });
 
   it("toDefinitions returns array", () => {
-    const tool = new Tool(
-      "t1",
-      "d",
-      z.object({ a: z.string() }),
-      async () => "x"
-    );
+    const tool = new Tool({
+      name: "t1",
+      description: "d",
+      input: z.object({ a: z.string() }),
+      func: async () => "x",
+    });
     const reg = new ToolRegistry([tool]);
     const defs = reg.toDefinitions();
     expect(Array.isArray(defs)).toBe(true);

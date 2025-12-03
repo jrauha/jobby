@@ -2,18 +2,18 @@ import { Agent, AgentRunner, Tool } from "../src/index.ts";
 import z from "zod";
 
 async function main() {
-  const generateRandomNumberTool = new Tool(
-    "generateRandomNumber",
-    "Generates a random number between min and max (inclusive). Expects arguments: { min: number, max: number }",
-    z.object({
+  const generateRandomNumberTool = new Tool({
+    name: "generateRandomNumber",
+    description: "Generates a random number between min and max.",
+    input: z.object({
       min: z.number().int(),
       max: z.number().int(),
     }),
-    async ({ min, max }: { min: number; max: number }) => {
+    func: ({ min, max }: { min: number; max: number }) => {
       const randomNum = Math.floor(Math.random() * (max - min + 1)) + min;
       return `Generated random number: ${randomNum}`;
-    }
-  );
+    },
+  });
 
   const agent = new Agent({
     name: "Number assistant",

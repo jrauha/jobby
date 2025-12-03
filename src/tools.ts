@@ -3,18 +3,22 @@ import { OpenAIToolDef } from "./types";
 
 export class ToolArgsParseError extends Error {}
 
+export type ToolFunc<T> = (args: T) => Promise<string> | string;
+
+export type ToolOptions<T extends z.ZodTypeAny = z.ZodTypeAny> = {
+  name: string;
+  description: string;
+  input: T;
+  func: ToolFunc<z.infer<T>>;
+};
+
 export class Tool<T extends z.ZodTypeAny = z.ZodTypeAny> {
   name: string;
   description: string;
   input: T;
-  func: (args: z.infer<T>) => Promise<string>;
+  func: ToolFunc<z.infer<T>>;
 
-  constructor(
-    name: string,
-    description: string,
-    input: T,
-    func: (args: z.infer<T>) => Promise<string>
-  ) {
+  constructor({ name, description, input, func }: ToolOptions<T>) {
     this.name = name;
     this.description = description;
     this.input = input;

@@ -47,12 +47,12 @@ class MockModel implements AIModel {
 describe("Agent", () => {
   it("runs tool call and stops on assistant message", async () => {
     const model = new MockModel();
-    const tool = new Tool(
-      "echo",
-      "e",
-      z.object({ text: z.string() }),
-      async (a) => `E:${a.text}`
-    );
+    const tool = new Tool({
+      name: "echo",
+      description: "e",
+      input: z.object({ text: z.string() }),
+      func: async (a) => `E:${a.text}`,
+    });
     const agent = new Agent({
       name: "name",
       instructions: "inst",
