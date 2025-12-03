@@ -51,7 +51,7 @@ const agent = new Agent({
   tools: [generateRandomNumberTool],
 });
 
-await AgentRunner.run('Generate a random number between 1 and 100.')
+await AgentRunner.run(agent, 'Generate a random number between 1 and 100.')
 ```
 
 Files to inspect
