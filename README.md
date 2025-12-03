@@ -1,5 +1,7 @@
 # Jobby — Lightweight OpenAI agent framework
 
+[![CI](https://github.com/jrauha/jobby/actions/workflows/test.yml/badge.svg)](https://github.com/jrauha/jobby/actions/workflows/test.yml)
+
 A lightweight TypeScript framework for creating agentic workflows powered by OpenAI models.
 
 ### Quick start
