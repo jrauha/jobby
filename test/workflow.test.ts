@@ -93,6 +93,51 @@ describe("Workflow", () => {
     });
   });
 
+  describe("addConditionalEdge", () => {
+    it("should add a conditional edge between two nodes", () => {
+      const workflow = new Workflow();
+      const node1 = async () => ({});
+      const node2 = async () => ({});
+      const condition = () => "node2";
+
+      workflow.addNode("node1", node1).addNode("node2", node2);
+      workflow.addConditionalEdge("node1", "node2", condition);
+
+      expect(workflow).toBeDefined();
+    });
+
+    it("should throw error if nodes do not exist", () => {
+      const workflow = new Workflow();
+      const condition = () => "nonexistent_to";
+
+      expect(() => {
+        workflow.addConditionalEdge(
+          "nonexistent_from",
+          ["nonexistent_to"],
+          condition
+        );
+      }).toThrowError(
+        "Cannot add edge from nonexistent_from to nonexistent_to: node not found"
+      );
+    });
+
+    it("should return workflow for chaining", () => {
+      const workflow = new Workflow()
+        .addNode("first_node", async () => ({}))
+        .addNode("second_node", async () => ({}));
+
+      const condition = () => "second_node";
+
+      const result = workflow.addConditionalEdge(
+        "first_node",
+        ["second_node"],
+        condition
+      );
+
+      expect(result).toBe(workflow);
+    });
+  });
+
   describe("run", () => {
     it("should execute a simple linear workflow", async () => {
       const workflow = new Workflow();
@@ -276,6 +321,73 @@ describe("Workflow", () => {
       expect(executionOrder).toContain("node2");
       expect(executionOrder).toContain("node3");
       expect(executionOrder.length).toBe(3);
+    });
+
+    it("should handle async conditions", async () => {
+      const workflow = new Workflow();
+      const executionOrder: string[] = [];
+
+      const node1 = async () => {
+        executionOrder.push("node1");
+        return { value: 10 };
+      };
+
+      const node2 = async () => {
+        executionOrder.push("node2");
+        return {};
+      };
+
+      workflow
+        .addNode("node1", node1)
+        .addNode("node2", node2)
+        .addEdge("__START__", "node1")
+        .addConditionalEdge("node1", "node2", async (state) => {
+          // Simulate async condition evaluation
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          return (state.value as number) > 5 ? "node2" : "node2";
+        });
+
+      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
+        workflowReducer,
+        {}
+      );
+      const ctx = {
+        store,
+      };
+
+      await workflow.run(ctx);
+
+      expect(executionOrder).toEqual(["node1", "node2"]);
+    });
+
+    it("should execute branching workflow based on conditions", async () => {
+      const workflow = new Workflow();
+
+      const checkValue = async () => {
+        return { value: 7 };
+      };
+
+      const handleLow = async () => {
+        return { result: "low" };
+      };
+
+      const handleHigh = async () => {
+        return { result: "high" };
+      };
+
+      workflow
+        .addNode("check", checkValue)
+        .addNode("low", handleLow)
+        .addNode("high", handleHigh)
+        .addEdge("__START__", "check")
+        .addConditionalEdge("check", ["low", "high"], (state) =>
+          (state.value as number) < 5 ? "low" : "high"
+        );
+
+      const result = await WorkflowRunner.run(workflow);
+
+      expect(result.value).toBe(7);
+      expect(result.result).toBe("high");
     });
   });
 });

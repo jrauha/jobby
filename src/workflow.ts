@@ -2,6 +2,7 @@ import { InMemoryStore } from "./store";
 import type { Context, State as StoreState } from "./types";
 
 export const START = "__START__";
+export const END = "__END__";
 
 export type WorkflowState = StoreState<Record<string, unknown>>;
 
@@ -30,11 +31,30 @@ export type WorkflowNodeFn<S extends WorkflowState = WorkflowState> = (
   state: S
 ) => Promise<Partial<S>> | Partial<S>;
 
+export interface WorkflowConditionFn<S extends WorkflowState = WorkflowState> {
+  (state: S): NodeId | Promise<NodeId>;
+}
+
 type NodeId = string;
+
+type Edge = {
+  to: NodeId;
+};
+
+type EdgeWithCondition<S extends WorkflowState = WorkflowState> = {
+  to: NodeId[];
+  condition: WorkflowConditionFn<S>;
+};
+
+function isEdgeWithCondition<S extends WorkflowState = WorkflowState>(
+  edge: Edge | EdgeWithCondition<S>
+): edge is EdgeWithCondition<S> {
+  return (edge as EdgeWithCondition<S>).condition !== undefined;
+}
 
 export class Workflow<S extends WorkflowState = WorkflowState> {
   private nodes: Map<NodeId, WorkflowNodeFn<S>> = new Map();
-  private edges: Map<NodeId, NodeId[]> = new Map();
+  private edges: Map<NodeId, (Edge | EdgeWithCondition<S>)[]> = new Map();
 
   constructor() {
     this.addNode(START, async (s) => s);
@@ -53,7 +73,31 @@ export class Workflow<S extends WorkflowState = WorkflowState> {
       throw new Error(`Cannot add edge from ${from} to ${to}: node not found`);
     }
     const list = this.edges.get(from) ?? [];
-    list.push(to);
+    list.push({ to });
+    this.edges.set(from, list);
+    return this;
+  }
+
+  addConditionalEdge(
+    from: NodeId,
+    to: NodeId | NodeId[],
+    condition: WorkflowConditionFn<S>
+  ): this {
+    const toArray = Array.isArray(to) ? to : [to];
+    if (!this.nodes.has(from)) {
+      throw new Error(
+        `Cannot add edge from ${from} to ${toArray.join(", ")}: node not found`
+      );
+    }
+    for (const targetNode of toArray) {
+      if (!this.nodes.has(targetNode)) {
+        throw new Error(
+          `Cannot add edge from ${from} to ${toArray.join(", ")}: node not found`
+        );
+      }
+    }
+    const list = this.edges.get(from) ?? [];
+    list.push({ to: toArray, condition });
     this.edges.set(from, list);
     return this;
   }
@@ -62,13 +106,12 @@ export class Workflow<S extends WorkflowState = WorkflowState> {
     return new Map(this.nodes);
   }
 
-  getEdges(): Map<NodeId, NodeId[]> {
+  getEdges(): Map<NodeId, (Edge | EdgeWithCondition<S>)[]> {
     return new Map(this.edges);
   }
 
   async run(ctx: Context<S, WorkflowAction<S>>): Promise<S> {
-    const startChildren = this.edges.get(START) ?? [];
-    const queue: Array<NodeId> = startChildren;
+    const queue: Array<NodeId> = [START];
 
     while (queue.length) {
       const id = queue.shift()!;
@@ -82,9 +125,24 @@ export class Workflow<S extends WorkflowState = WorkflowState> {
 
       ctx.store.dispatch({ type: "WORKFLOW_NODE_OUTPUT", nodeId: id, output });
 
-      const children = this.edges.get(id) ?? [];
-      for (const c of children) {
-        queue.push(c);
+      const edges = this.edges.get(id) ?? [];
+      const currentState = ctx.store.getState();
+
+      for (const edge of edges) {
+        if (edge.to === END) {
+          continue;
+        }
+        if (isEdgeWithCondition<S>(edge)) {
+          const targetId = await Promise.resolve(edge.condition(currentState));
+          if (!edge.to.includes(targetId)) {
+            throw new Error(
+              `Workflow edge condition returned invalid target: ${targetId}`
+            );
+          }
+          queue.push(targetId);
+        } else {
+          queue.push(edge.to);
+        }
       }
     }
 
