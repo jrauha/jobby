@@ -6,7 +6,6 @@ import {
   Message,
   AIModel,
   Context,
-  Store,
   FunctionCallOutputMessage,
 } from "./types";
 import { InMemoryStore } from "./store";
@@ -19,7 +18,7 @@ import {
 const DEFAULT_MAX_ITERATIONS = 10;
 
 export type AgentState = State<{ messages: Message[] }>;
-export type AgentContext = Context<Store<AgentState, AgentAction>>;
+export type AgentContext = Context<AgentState, AgentAction>;
 
 export type AgentAction =
   | { type: "MODEL_OUTPUT"; output: Message[] }
