@@ -37,7 +37,7 @@ export type AIModel = {
 
 /* Store types */
 
-export type State<T> = T & Record<string, unknown>;
+export type State<T = object> = T & Record<string, unknown>;
 
 export type StoreEvent = object & { type: string };
 
@@ -49,6 +49,10 @@ export type Store<S, A extends StoreEvent> = {
   dispatch(event: A): void;
 };
 
-export type Context<S> = {
-  store: S;
+export type Context<S extends State, E extends StoreEvent> = {
+  store: Store<S, E>;
+};
+
+export type Runnable<S extends State = State> = {
+  run(ctx: Context<S, StoreEvent>): Promise<S>;
 };
