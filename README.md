@@ -54,9 +54,53 @@ const agent = new Agent({
 await AgentRunner.run(agent, 'Generate a random number between 1 and 100.')
 ```
 
+## Workflows
+
+Jobby supports building multi-step workflows with conditional branching. Workflows are ideal for orchestrating complex sequences of operations.
+
+### Basic Workflow Example
+
+```ts
+import { Workflow, WorkflowRunner } from './src/index'
+
+type WorkflowState = {
+  a: number;
+  b: number;
+  sum?: number;
+  sqrt?: number;
+};
+
+const workflow = new Workflow<WorkflowState>()
+  .addNode("sum_step", async (state) => {
+    return {
+      sum: state.a + state.b,
+    };
+  })
+  .addNode("sqrt_step", async (state) => {
+    return {
+      sqrt: Math.sqrt(state.sum ?? 0),
+    };
+  })
+  .addEdge("__START__", "sum_step")
+  .addConditionalEdge("sum_step", ["sqrt_step"], ({ sum = 0 }) => {
+    return sum >= 0 ? "sqrt_step" : "__END__";
+  });
+
+const result = await WorkflowRunner.run(workflow, { a: 3, b: 4 });
+// result: { a: 3, b: 4, sum: 7, sqrt: 2.6457... }
+```
+
+### Workflow Features
+
+- **Node Functions**: Each node receives the current state and returns partial state updates
+- **Edges**: Connect nodes in sequence with `.addEdge(from, to)`
+- **Conditional Edges**: Branch based on state with `.addConditionalEdge(from, to, conditionFn)`
+- **Special Nodes**: `__START__` (entry point) and `__END__` (exit point)
+
 Files to inspect
 
-- `examples/simple-agent.ts` — runnable example
-- `src/agent.ts`, `src/tool.ts`, `src/index.ts`
+- `examples/simple-agent.ts` — runnable agent example
+- `examples/simple-workflow.ts` — runnable workflow example
+- `src/agent.ts`, `src/tool.ts`, `src/workflow.ts`, `src/index.ts`
 
 License: MIT
