@@ -1,28 +1,33 @@
 import { OpenAIModel } from "./model";
-import { Tool, ToolArgsParseError } from "./tools";
 import ToolRegistry from "./toolRegistry";
+import { Tool, ToolArgsParseError } from "./tools";
 import {
-  State,
-  Message,
   AIModel,
   Context,
   FunctionCallOutputMessage,
+  Message,
+  Runnable,
+  State,
 } from "./types";
-import { InMemoryStore } from "./store";
 import {
   getLastMessage,
   isAssistantMessage,
   isFunctionCallMessage,
 } from "./utils";
+import {
+  END,
+  START,
+  Workflow,
+  WorkflowAction,
+  WorkflowRunner,
+} from "./workflow";
 
 const DEFAULT_MAX_ITERATIONS = 10;
 
-export type AgentState = State<{ messages: Message[] }>;
-export type AgentContext = Context<AgentState, AgentAction>;
+const MODEL_STEP = "model_step";
+const FUNCTION_STEP = "function_step";
 
-export type AgentAction =
-  | { type: "MODEL_OUTPUT"; output: Message[] }
-  | { type: "FUNCTION_CALL_OUTPUT"; call_id: string; output: string };
+export type AgentState = State<{ iteration: number; messages: Message[] }>;
 
 export type AgentOptions = {
   name: string;
@@ -32,12 +37,13 @@ export type AgentOptions = {
   maxIterations?: number;
 };
 
-export class Agent {
+export class Agent implements Runnable<AgentState> {
   public readonly name;
   private model: AIModel;
   private toolRegistry: ToolRegistry;
   private maxIterations: number;
   private instructions: string;
+  private workflow: Workflow<AgentState>;
 
   constructor({
     name,
@@ -51,64 +57,98 @@ export class Agent {
     this.toolRegistry = new ToolRegistry(tools);
     this.maxIterations = maxIterations ?? DEFAULT_MAX_ITERATIONS;
     this.instructions = instructions;
+    this.workflow = this.buildWorkflow();
   }
 
-  private async step(store: AgentContext["store"]): Promise<void> {
-    const response = await this.model.invoke(
-      store.getState().messages,
-      this.toolRegistry.toDefinitions()
-    );
+  private buildWorkflow(): Workflow<AgentState> {
+    const workflow = new Workflow<AgentState>();
 
-    const output: Message[] = response.output ?? [];
+    // Model step: call the AI model
+    workflow.addNode(MODEL_STEP, async (state: AgentState) => {
+      const response = await this.model.invoke(
+        state.messages,
+        this.toolRegistry.toDefinitions()
+      );
 
-    store.dispatch({ type: "MODEL_OUTPUT", output });
+      const output: Message[] = response.output ?? [];
 
-    for (const item of output) {
-      if (isFunctionCallMessage(item)) {
-        const fc = item;
-        try {
-          const toolResponse = await this.toolRegistry.invoke(
-            fc.name,
-            item.arguments
-          );
-          store.dispatch({
-            type: "FUNCTION_CALL_OUTPUT",
-            call_id: fc.call_id,
-            output: toolResponse,
-          });
-        } catch (e) {
-          if (e instanceof ToolArgsParseError) {
-            store.dispatch({
-              type: "FUNCTION_CALL_OUTPUT",
-              call_id: fc.call_id,
-              output: `Error parsing arguments for tool ${fc.name}: ${e.message}`,
-            });
-          } else {
-            throw e;
+      return {
+        messages: [...state.messages, ...output],
+        iteration: state.iteration + 1,
+      };
+    });
+
+    // Function step: execute function calls
+    workflow.addNode(FUNCTION_STEP, async (state: AgentState) => {
+      const functionCallOutputs: FunctionCallOutputMessage[] = [];
+
+      // Find all function call messages since the last function step
+      const idx =
+        state.messages.findLastIndex((m) => !isFunctionCallMessage(m)) + 1;
+
+      for (let i = idx; i < state.messages.length; i++) {
+        const lm = state.messages[i];
+        if (lm && isFunctionCallMessage(lm)) {
+          if (isFunctionCallMessage(lm)) {
+            const fc = lm;
+            try {
+              const toolResponse = await this.toolRegistry.invoke(
+                fc.name,
+                lm.arguments
+              );
+              functionCallOutputs.push({
+                type: "function_call_output",
+                call_id: fc.call_id,
+                output: toolResponse,
+              });
+            } catch (e) {
+              if (e instanceof ToolArgsParseError) {
+                functionCallOutputs.push({
+                  type: "function_call_output",
+                  call_id: fc.call_id,
+                  output: `Error parsing arguments for tool ${fc.name}: ${e.message}`,
+                });
+              } else {
+                throw e;
+              }
+            }
           }
         }
       }
-    }
+
+      return {
+        messages: [...state.messages, ...functionCallOutputs],
+      };
+    });
+
+    workflow.addEdge(START, MODEL_STEP);
+
+    workflow.addConditionalEdge(MODEL_STEP, [FUNCTION_STEP], (state) => {
+      const lm = getLastMessage(state);
+      const iteration = state.iteration;
+
+      if ((lm && isAssistantMessage(lm)) || iteration >= this.maxIterations) {
+        return END;
+      }
+      return FUNCTION_STEP;
+    });
+
+    workflow.addEdge(FUNCTION_STEP, MODEL_STEP);
+    return workflow;
   }
 
   getInstructions(): string {
     return this.instructions;
   }
 
-  async run(ctx: AgentContext): Promise<AgentContext> {
-    for (let i = 0; i < this.maxIterations; i++) {
-      await this.step(ctx.store);
-      const lm = getLastMessage(ctx.store.getState());
-      if (lm && isAssistantMessage(lm)) {
-        break;
-      }
-    }
-    return ctx;
+  async run(ctx: Context<AgentState, WorkflowAction>): Promise<AgentState> {
+    return this.workflow.run(ctx);
   }
 }
 
 export function initialState(instructions: string, input: string): AgentState {
   return {
+    iteration: 0,
     messages: [
       { role: "system", content: instructions },
       { role: "user", content: input },
@@ -116,37 +156,10 @@ export function initialState(instructions: string, input: string): AgentState {
   };
 }
 
-export function agentReducer(
-  state: AgentState,
-  action: AgentAction
-): AgentState {
-  switch (action.type) {
-    case "MODEL_OUTPUT":
-      return { ...state, messages: [...state.messages, ...action.output] };
-    case "FUNCTION_CALL_OUTPUT": {
-      const fc: FunctionCallOutputMessage = {
-        type: "function_call_output",
-        call_id: action.call_id,
-        output: action.output,
-      };
-      return {
-        ...state,
-        messages: [...state.messages, fc],
-      };
-    }
-    default:
-      return state;
-  }
-}
-
 export class AgentRunner {
   static async run(agent: Agent, input: string): Promise<AgentState> {
-    const store = new InMemoryStore(
-      agentReducer,
-      initialState(agent.getInstructions(), input)
-    );
-    const ctx = { store };
-    const finalCtx = await agent.run(ctx);
-    return finalCtx.store.getState();
+    const initial = initialState(agent.getInstructions(), input);
+    const final = await WorkflowRunner.run(agent, initial);
+    return final;
   }
 }

@@ -1,5 +1,5 @@
 import { InMemoryStore } from "./store";
-import type { Context, State as StoreState } from "./types";
+import type { Context, Runnable, State as StoreState } from "./types";
 
 export const START = "__START__";
 export const END = "__END__";
@@ -52,7 +52,9 @@ function isEdgeWithCondition<S extends WorkflowState = WorkflowState>(
   return (edge as EdgeWithCondition<S>).condition !== undefined;
 }
 
-export class Workflow<S extends WorkflowState = WorkflowState> {
+export class Workflow<
+  S extends WorkflowState = WorkflowState,
+> implements Runnable<S> {
   private nodes: Map<NodeId, WorkflowNodeFn<S>> = new Map();
   private edges: Map<NodeId, (Edge | EdgeWithCondition<S>)[]> = new Map();
 
@@ -134,6 +136,9 @@ export class Workflow<S extends WorkflowState = WorkflowState> {
         }
         if (isEdgeWithCondition<S>(edge)) {
           const targetId = await Promise.resolve(edge.condition(currentState));
+          if (targetId === END) {
+            continue;
+          }
           if (!edge.to.includes(targetId)) {
             throw new Error(
               `Workflow edge condition returned invalid target: ${targetId}`
@@ -152,7 +157,7 @@ export class Workflow<S extends WorkflowState = WorkflowState> {
 
 export class WorkflowRunner {
   static async run<S extends WorkflowState = WorkflowState>(
-    workflow: Workflow<S>,
+    workflow: Runnable<S>,
     initial: S = {} as S
   ): Promise<S> {
     const store = new InMemoryStore<S, WorkflowAction<S>>(

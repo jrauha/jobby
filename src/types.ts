@@ -52,3 +52,7 @@ export type Store<S, A extends StoreEvent> = {
 export type Context<S extends State, E extends StoreEvent> = {
   store: Store<S, E>;
 };
+
+export type Runnable<S extends State = State> = {
+  run(ctx: Context<S, StoreEvent>): Promise<S>;
+};
