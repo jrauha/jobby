@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Agent, AgentRunner, AgentState, initialState } from "../src/agent";
+import { Agent, AgentRunner, initialState } from "../src/agent";
 import * as z from "zod";
 import { Tool } from "../src/tools";
 import { AIModel, Message } from "../src";

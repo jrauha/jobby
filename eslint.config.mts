@@ -11,4 +11,12 @@ export default defineConfig([
     languageOptions: { globals: globals.node },
   },
   tseslint.configs.recommended,
+  {
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      "coverage/**",
+      "*.config.{js,mjs,cjs}",
+    ],
+  },
 ]);
