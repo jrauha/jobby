@@ -6,8 +6,8 @@ import {
   WorkflowState,
   WorkflowAction,
   START,
+  createWorkflowStore,
 } from "../src/workflow";
-import { InMemoryStore } from "../src/store";
 
 describe("Workflow", () => {
   describe("addNode", () => {
@@ -151,13 +151,10 @@ describe("Workflow", () => {
       workflow
         .addNode("node1", node1)
         .addNode("node2", node2)
-        .addEdge("__START__", "node1")
+        .addEdge(START, "node1")
         .addEdge("node1", "node2");
 
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        { initial: "data" }
-      );
+      const store = createWorkflowStore<WorkflowState>({ initial: "data" });
       const ctx = {
         store,
       };
@@ -194,10 +191,7 @@ describe("Workflow", () => {
         .addEdge("node1", "node2")
         .addEdge("node2", "node3");
 
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        {}
-      );
+      const store = createWorkflowStore<WorkflowState>({});
       const ctx = {
         store,
       };
@@ -214,12 +208,9 @@ describe("Workflow", () => {
         syncResult: "success",
       });
 
-      workflow.addNode("sync_node", syncNode).addEdge("__START__", "sync_node");
+      workflow.addNode("sync_node", syncNode).addEdge(START, "sync_node");
 
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        {}
-      );
+      const store = createWorkflowStore<WorkflowState>({});
       const ctx = {
         store,
       };
@@ -248,14 +239,11 @@ describe("Workflow", () => {
         .addNode("node1", node1)
         .addNode("node2", node2)
         .addNode("node3", node3)
-        .addEdge("__START__", "node1")
+        .addEdge(START, "node1")
         .addEdge("node1", "node2")
         .addEdge("node2", "node3");
 
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        {}
-      );
+      const store = createWorkflowStore<WorkflowState>({});
       const ctx = {
         store,
       };
@@ -268,10 +256,7 @@ describe("Workflow", () => {
     it("should handle workflow with no nodes", async () => {
       const workflow = new Workflow();
 
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        { initial: "value" }
-      );
+      const store = createWorkflowStore<WorkflowState>({ initial: "value" });
       const ctx = {
         store,
       };
@@ -302,14 +287,11 @@ describe("Workflow", () => {
         .addNode("node1", node1)
         .addNode("node2", node2)
         .addNode("node3", node3)
-        .addEdge("__START__", "node1")
+        .addEdge(START, "node1")
         .addEdge("node1", "node2")
         .addEdge("node1", "node3");
 
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        {}
-      );
+      const store = createWorkflowStore<WorkflowState>({});
       const ctx = {
         store,
       };
@@ -340,17 +322,14 @@ describe("Workflow", () => {
       workflow
         .addNode("node1", node1)
         .addNode("node2", node2)
-        .addEdge("__START__", "node1")
+        .addEdge(START, "node1")
         .addConditionalEdge("node1", "node2", async (state) => {
           // Simulate async condition evaluation
           await new Promise((resolve) => setTimeout(resolve, 10));
           return (state.value as number) > 5 ? "node2" : "node2";
         });
 
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        {}
-      );
+      const store = createWorkflowStore<WorkflowState>({});
       const ctx = {
         store,
       };
@@ -379,7 +358,7 @@ describe("Workflow", () => {
         .addNode("check", checkValue)
         .addNode("low", handleLow)
         .addNode("high", handleHigh)
-        .addEdge("__START__", "check")
+        .addEdge(START, "check")
         .addConditionalEdge("check", ["low", "high"], (state) =>
           (state.value as number) < 5 ? "low" : "high"
         );
@@ -399,7 +378,7 @@ describe("WorkflowRunner", () => {
       processed: true,
     });
 
-    workflow.addNode("node1", node1).addEdge("__START__", "node1");
+    workflow.addNode("node1", node1).addEdge(START, "node1");
 
     const result = await WorkflowRunner.run(workflow, { input: "test" });
 
@@ -413,7 +392,7 @@ describe("WorkflowRunner", () => {
       output: "generated",
     });
 
-    workflow.addNode("node1", node1).addEdge("__START__", "node1");
+    workflow.addNode("node1", node1).addEdge(START, "node1");
 
     const result = await WorkflowRunner.run(workflow);
 
@@ -439,7 +418,7 @@ describe("WorkflowRunner", () => {
       .addNode("fetch", fetchData)
       .addNode("process", processData)
       .addNode("save", saveData)
-      .addEdge("__START__", "fetch")
+      .addEdge(START, "fetch")
       .addEdge("fetch", "process")
       .addEdge("process", "save");
 
@@ -462,6 +441,53 @@ describe("workflowReducer", () => {
 
     expect(newState.result).toBe(42);
     expect(newState.status).toBe("complete");
+  });
+
+  describe("workflow metadata (__workflow)", () => {
+    it("should update metadata on WORKFLOW_START and WORKFLOW_END", async () => {
+      const workflow = new Workflow();
+      workflow.addNode("n1", async (s) => ({ ...s })).addEdge(START, "n1");
+
+      const store = createWorkflowStore<WorkflowState>({});
+      const ctx = { store };
+
+      const before = store.getState();
+      expect(before.__workflow).toBeUndefined();
+
+      await workflow.run(ctx);
+
+      const events = store.getEvents();
+      const startEvent = events.find((e) => e.type === "WORKFLOW_START");
+      const endEvent = events.find((e) => e.type === "WORKFLOW_END");
+
+      expect(startEvent).toBeDefined();
+      expect(endEvent).toBeDefined();
+    });
+
+    it("should update metadata on WORKFLOW_NODE_START and WORKFLOW_NODE_END", async () => {
+      const workflow = new Workflow();
+      workflow.addNode("n1", async (s) => ({ ...s })).addEdge(START, "n1");
+
+      const store = createWorkflowStore<WorkflowState>({});
+      const ctx = { store };
+
+      await workflow.run(ctx);
+
+      const states = store.getEvents().filter((e) =>
+        e.type.startsWith("WORKFLOW_NODE_")
+      );
+
+      expect(states[0]).toEqual({
+        type: "WORKFLOW_NODE_START",
+        nodeId: "n1",
+      });
+
+      expect(states[1]).toEqual({
+        type: "WORKFLOW_NODE_END",
+        nodeId: "n1",
+        output: {},
+      });
+    }
   });
 
   it("should merge output with existing state", () => {
