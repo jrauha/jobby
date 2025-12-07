@@ -1,7 +1,7 @@
 import OpenAI from "openai";
-import { AIModel, Message, OpenAIToolDef } from "./types";
+import { AIModel, OpenAIMessage, OpenAIToolDef } from "./types";
 
-export class OpenAIModel implements AIModel {
+export class OpenAIModel implements AIModel<OpenAIMessage> {
   private client: OpenAI;
   public readonly model: string;
 
@@ -12,7 +12,7 @@ export class OpenAIModel implements AIModel {
     });
   }
 
-  async invoke(input: Message[], tools?: OpenAIToolDef[]) {
+  async invoke(input: OpenAIMessage[], tools?: OpenAIToolDef[]) {
     return await this.client.responses.create({
       model: this.model,
       tools: tools ?? [],

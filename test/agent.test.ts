@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { Agent, AgentRunner, initialState } from "../src/agent";
+import { OpenAIAgent as Agent, AgentRunner, initialState } from "../src/agent";
 import * as z from "zod";
 import { Tool } from "../src/tools";
-import { AIModel, Message } from "../src";
+import { AIModel, OpenAIMessage } from "../src";
 
 // Mock model that returns a function_call then an assistant message
-class MockModel implements AIModel {
+class MockModel implements AIModel<OpenAIMessage> {
   private calls = 0;
-  async invoke(): Promise<{ output: Message[] }> {
+  async invoke(): Promise<{ output: OpenAIMessage[] }> {
     this.calls++;
     if (this.calls === 1) {
       return {
@@ -74,7 +74,9 @@ describe("Agent", () => {
     });
     // Ensure function_call_output was added
     expect(
-      state.messages.some((m: Message) => m.type === "function_call_output")
+      state.messages.some(
+        (m: OpenAIMessage) => m.type === "function_call_output"
+      )
     ).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-import { Agent, AgentRunner, Tool } from "../src/index.ts";
+import { OpenAIAgent as Agent, AgentRunner, Tool } from "../src/index.ts";
 import z from "zod";
 
 async function main() {

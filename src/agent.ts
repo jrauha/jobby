@@ -2,12 +2,12 @@ import { OpenAIModel } from "./model";
 import ToolRegistry from "./toolRegistry";
 import { Tool, ToolArgsParseError } from "./tools";
 import {
+  Agent,
+  AgentState,
   AIModel,
   Context,
   FunctionCallOutputMessage,
-  Message,
-  Runnable,
-  State,
+  OpenAIMessage,
 } from "./types";
 import {
   getLastMessage,
@@ -27,23 +27,25 @@ const DEFAULT_MAX_ITERATIONS = 10;
 const MODEL_STEP = "model_step";
 const FUNCTION_STEP = "function_step";
 
-export type AgentState = State<{ iteration: number; messages: Message[] }>;
+export type OpenAIAgenState = AgentState<OpenAIMessage> & {
+  iteration: number;
+};
 
-export type AgentOptions = {
+export type OpenAIAgentOptions = {
   name: string;
   instructions: string;
-  model: string | AIModel;
+  model: string | AIModel<OpenAIMessage>;
   tools?: Tool[];
   maxIterations?: number;
 };
 
-export class Agent implements Runnable<AgentState> {
+export class OpenAIAgent implements Agent<OpenAIMessage> {
   public readonly name;
-  private model: AIModel;
+  private model: AIModel<OpenAIMessage>;
   private toolRegistry: ToolRegistry;
   private maxIterations: number;
   private instructions: string;
-  private workflow: Workflow<AgentState>;
+  private workflow: Workflow<OpenAIAgenState>;
 
   constructor({
     name,
@@ -51,7 +53,7 @@ export class Agent implements Runnable<AgentState> {
     model,
     tools,
     maxIterations,
-  }: AgentOptions) {
+  }: OpenAIAgentOptions) {
     this.name = name;
     this.model = typeof model === "string" ? new OpenAIModel(model) : model;
     this.toolRegistry = new ToolRegistry(tools);
@@ -60,17 +62,17 @@ export class Agent implements Runnable<AgentState> {
     this.workflow = this.buildWorkflow();
   }
 
-  private buildWorkflow(): Workflow<AgentState> {
-    const workflow = new Workflow<AgentState>();
+  private buildWorkflow(): Workflow<OpenAIAgenState> {
+    const workflow = new Workflow<OpenAIAgenState>();
 
     // Model step: call the AI model
-    workflow.addNode(MODEL_STEP, async (state: AgentState) => {
+    workflow.addNode(MODEL_STEP, async (state: OpenAIAgenState) => {
       const response = await this.model.invoke(
         state.messages,
         this.toolRegistry.toDefinitions()
       );
 
-      const output: Message[] = response.output ?? [];
+      const output: OpenAIMessage[] = response.output ?? [];
 
       return {
         messages: [...state.messages, ...output],
@@ -79,7 +81,7 @@ export class Agent implements Runnable<AgentState> {
     });
 
     // Function step: execute function calls
-    workflow.addNode(FUNCTION_STEP, async (state: AgentState) => {
+    workflow.addNode(FUNCTION_STEP, async (state: OpenAIAgenState) => {
       const functionCallOutputs: FunctionCallOutputMessage[] = [];
 
       // Find all function call messages since the last function step
@@ -123,7 +125,7 @@ export class Agent implements Runnable<AgentState> {
 
     workflow.addEdge(START, MODEL_STEP);
 
-    workflow.addConditionalEdge(MODEL_STEP, [FUNCTION_STEP], (state) => {
+    workflow.addConditionalEdge(MODEL_STEP, [FUNCTION_STEP, END], (state) => {
       const lm = getLastMessage(state);
       const iteration = state.iteration;
 
@@ -141,12 +143,17 @@ export class Agent implements Runnable<AgentState> {
     return this.instructions;
   }
 
-  async run(ctx: Context<AgentState, WorkflowAction>): Promise<AgentState> {
+  async run(
+    ctx: Context<OpenAIAgenState, WorkflowAction>
+  ): Promise<OpenAIAgenState> {
     return this.workflow.run(ctx);
   }
 }
 
-export function initialState(instructions: string, input: string): AgentState {
+export function initialState(
+  instructions: string,
+  input: string
+): OpenAIAgenState {
   return {
     iteration: 0,
     messages: [
@@ -157,7 +164,10 @@ export function initialState(instructions: string, input: string): AgentState {
 }
 
 export class AgentRunner {
-  static async run(agent: Agent, input: string): Promise<AgentState> {
+  static async run(
+    agent: OpenAIAgent,
+    input: string
+  ): Promise<OpenAIAgenState> {
     const initial = initialState(agent.getInstructions(), input);
     const final = await WorkflowRunner.run(agent, initial);
     return final;
