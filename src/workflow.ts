@@ -60,6 +60,7 @@ export class Workflow<
 
   constructor() {
     this.addNode(START, async (s) => s);
+    this.addNode(END, async (s) => s);
   }
 
   addNode(id: NodeId, fn: WorkflowNodeFn<S>): this {
