@@ -13,10 +13,10 @@ export type ToolOptions<T extends z.ZodTypeAny = z.ZodTypeAny> = {
 };
 
 export class Tool<T extends z.ZodTypeAny = z.ZodTypeAny> {
-  name: string;
-  description: string;
-  input: T;
-  func: ToolFunc<z.infer<T>>;
+  readonly name: string;
+  readonly description: string;
+  readonly input: T;
+  private func: ToolFunc<z.infer<T>>;
 
   constructor({ name, description, input, func }: ToolOptions<T>) {
     this.name = name;
