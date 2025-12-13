@@ -114,6 +114,7 @@ export class OpenAIAgent implements Agent<OpenAIAgenState> {
       }
 
       return {
+        ...state,
         messages: [...state.messages, ...functionCallOutputs],
       };
     });

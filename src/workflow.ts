@@ -112,40 +112,33 @@ export class WorkflowRunner {
       workflowReducer<S>,
       initial
     );
-    const queue: Array<NodeId> = [START];
+    const queue: Array<[NodeId, S]> = [[START, store.getState()]];
 
     while (queue.length) {
-      const id = queue.shift()!;
+      const [id, input] = queue.shift()!;
 
       const fn = workflow.getNode(id);
       if (!fn) {
         throw new Error(`Workflow node not found: ${id}`);
       }
 
-      const output = await Promise.resolve(fn(store.getState()));
+      const output = await Promise.resolve(fn(input));
 
       store.dispatch({ type: "WORKFLOW_NODE_OUTPUT", nodeId: id, output });
 
       const edges = workflow.getEdges().get(id) ?? [];
-      const currentState = store.getState();
 
       for (const edge of edges) {
-        if (edge.to === END) {
-          continue;
-        }
         if (isEdgeWithCondition<S>(edge)) {
-          const targetId = await Promise.resolve(edge.condition(currentState));
-          if (targetId === END) {
-            continue;
-          }
+          const targetId = await Promise.resolve(edge.condition(output));
           if (!edge.to.includes(targetId)) {
             throw new Error(
               `Workflow edge condition returned invalid target: ${targetId}`
             );
           }
-          queue.push(targetId);
+          queue.push([targetId, output]);
         } else {
-          queue.push(edge.to);
+          queue.push([edge.to, output]);
         }
       }
     }

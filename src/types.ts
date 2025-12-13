@@ -24,7 +24,7 @@ export type WorkflowState = State<Record<string, unknown>>;
 
 export type WorkflowNodeFn<S extends WorkflowState = WorkflowState> = (
   state: S
-) => Promise<Partial<S>> | Partial<S>;
+) => Promise<S> | S;
 
 export type WorkflowConditionFn<S extends WorkflowState = WorkflowState> = {
   (state: S): NodeId | Promise<NodeId>;
