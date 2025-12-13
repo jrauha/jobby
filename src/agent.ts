@@ -3,10 +3,11 @@ import ToolRegistry from "./toolRegistry";
 import { Tool, ToolArgsParseError } from "./tools";
 import {
   Agent,
-  AgentState,
   AIModel,
   FunctionCallOutputMessage,
   OpenAIMessage,
+  WorkflowGraph,
+  WorkflowState,
 } from "./types";
 import {
   getLastMessage,
@@ -20,8 +21,9 @@ const DEFAULT_MAX_ITERATIONS = 10;
 const MODEL_STEP = "model_step";
 const FUNCTION_STEP = "function_step";
 
-export type OpenAIAgenState = AgentState<OpenAIMessage> & {
+export type OpenAIAgenState = {
   iteration: number;
+  messages: OpenAIMessage[];
 };
 
 export type OpenAIAgentOptions = {
@@ -32,13 +34,13 @@ export type OpenAIAgentOptions = {
   maxIterations?: number;
 };
 
-export class OpenAIAgent implements Agent {
+export class OpenAIAgent implements Agent<OpenAIAgenState> {
   public readonly name;
   private model: AIModel<OpenAIMessage>;
   private toolRegistry: ToolRegistry;
   private maxIterations: number;
   private instructions: string;
-  private workflow: Workflow<OpenAIAgenState>;
+  private workflow: WorkflowGraph<OpenAIAgenState>;
 
   constructor({
     name,
@@ -55,7 +57,7 @@ export class OpenAIAgent implements Agent {
     this.workflow = this.buildWorkflow();
   }
 
-  private buildWorkflow(): Workflow<OpenAIAgenState> {
+  private buildWorkflow(): WorkflowGraph<OpenAIAgenState> {
     const workflow = new Workflow<OpenAIAgenState>();
 
     // Model step: call the AI model
@@ -132,34 +134,27 @@ export class OpenAIAgent implements Agent {
     return workflow;
   }
 
-  getInstructions(): string {
-    return this.instructions;
+  initialState(input: string): OpenAIAgenState {
+    return {
+      iteration: 0,
+      messages: [
+        { role: "system", content: this.instructions },
+        { role: "user", content: input },
+      ],
+    };
   }
 
-  toWorkflow(): Workflow<OpenAIAgenState> {
+  toWorkflow(): WorkflowGraph<OpenAIAgenState> {
     return this.workflow;
   }
 }
 
-export function initialState(
-  instructions: string,
-  input: string
-): OpenAIAgenState {
-  return {
-    iteration: 0,
-    messages: [
-      { role: "system", content: instructions },
-      { role: "user", content: input },
-    ],
-  };
-}
-
 export class AgentRunner {
-  static async run(
-    agent: OpenAIAgent,
+  static async run<S extends WorkflowState>(
+    agent: Agent<S>,
     input: string
-  ): Promise<OpenAIAgenState> {
-    const initial = initialState(agent.getInstructions(), input);
+  ): Promise<S> {
+    const initial = agent.initialState(input);
     const final = await WorkflowRunner.run(agent.toWorkflow(), initial);
     return final;
   }

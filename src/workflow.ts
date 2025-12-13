@@ -1,10 +1,16 @@
 import { InMemoryStore } from "./store";
-import type { State as StoreState } from "./types";
+import type {
+  Edge,
+  EdgeWithCondition,
+  NodeId,
+  WorkflowConditionFn,
+  WorkflowGraph,
+  WorkflowNodeFn,
+  WorkflowState,
+} from "./types";
 
 export const START = "__START__";
 export const END = "__END__";
-
-export type WorkflowState = StoreState<Record<string, unknown>>;
 
 export type WorkflowAction<S extends WorkflowState = WorkflowState> = {
   type: "WORKFLOW_NODE_OUTPUT";
@@ -26,25 +32,6 @@ export function workflowReducer<S extends WorkflowState = WorkflowState>(
       return state;
   }
 }
-
-export type WorkflowNodeFn<S extends WorkflowState = WorkflowState> = (
-  state: S
-) => Promise<Partial<S>> | Partial<S>;
-
-export interface WorkflowConditionFn<S extends WorkflowState = WorkflowState> {
-  (state: S): NodeId | Promise<NodeId>;
-}
-
-type NodeId = string;
-
-type Edge = {
-  to: NodeId;
-};
-
-type EdgeWithCondition<S extends WorkflowState = WorkflowState> = {
-  to: NodeId[];
-  condition: WorkflowConditionFn<S>;
-};
 
 function isEdgeWithCondition<S extends WorkflowState = WorkflowState>(
   edge: Edge | EdgeWithCondition<S>
@@ -103,8 +90,8 @@ export class Workflow<S extends WorkflowState = WorkflowState> {
     return this;
   }
 
-  getNodes(): Map<NodeId, WorkflowNodeFn<S>> {
-    return new Map(this.nodes);
+  getNodes(): NodeId[] {
+    return Array.from(this.nodes.keys());
   }
 
   getEdges(): Map<NodeId, (Edge | EdgeWithCondition<S>)[]> {
@@ -118,7 +105,7 @@ export class Workflow<S extends WorkflowState = WorkflowState> {
 
 export class WorkflowRunner {
   static async run<S extends WorkflowState = WorkflowState>(
-    workflow: Workflow<S>,
+    workflow: WorkflowGraph<S>,
     initial: S = {} as S
   ): Promise<S> {
     const store = new InMemoryStore<S, WorkflowAction<S>>(

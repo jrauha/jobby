@@ -3,10 +3,10 @@ import {
   Workflow,
   WorkflowRunner,
   workflowReducer,
-  WorkflowState,
   WorkflowAction,
   START,
 } from "../src/workflow";
+import { WorkflowState } from "../src/types";
 
 describe("Workflow", () => {
   describe("addNode", () => {

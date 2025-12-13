@@ -18,6 +18,35 @@ export type Store<S, A extends StoreEvent> = {
   dispatch(event: A): void;
 };
 
+/* Workflow types */
+
+export type WorkflowState = State<Record<string, unknown>>;
+
+export type WorkflowNodeFn<S extends WorkflowState = WorkflowState> = (
+  state: S
+) => Promise<Partial<S>> | Partial<S>;
+
+export type WorkflowConditionFn<S extends WorkflowState = WorkflowState> = {
+  (state: S): NodeId | Promise<NodeId>;
+};
+
+export type NodeId = string;
+
+export type Edge = {
+  to: NodeId;
+};
+
+export type EdgeWithCondition<S extends WorkflowState = WorkflowState> = {
+  to: NodeId[];
+  condition: WorkflowConditionFn<S>;
+};
+
+export type WorkflowGraph<S extends WorkflowState = WorkflowState> = {
+  getEdges(): Map<NodeId, (Edge | EdgeWithCondition<S>)[]>;
+  getNodes(): NodeId[];
+  getNode(id: NodeId): WorkflowNodeFn<S> | undefined;
+};
+
 /* Agent types */
 
 export type AIModel<Message> = {
@@ -27,12 +56,10 @@ export type AIModel<Message> = {
   ): Promise<{ output: Message[] }>;
 };
 
-export type AgentState<Message> = State<{
-  messages: Message[];
-}>;
-
-export type Agent = {
+export type Agent<S extends WorkflowState = WorkflowState> = {
   name: string;
+  initialState(input: string): S;
+  toWorkflow(): WorkflowGraph<S>;
 };
 
 /* OpenAI Message types */

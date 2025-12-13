@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { OpenAIAgent as Agent, AgentRunner, initialState } from "../src/agent";
+import { OpenAIAgent as Agent, AgentRunner } from "../src/agent";
 import * as z from "zod";
 import { Tool } from "../src/tools";
 import { AIModel, OpenAIMessage } from "../src";
@@ -45,6 +45,22 @@ class MockModel implements AIModel<OpenAIMessage> {
 }
 
 describe("Agent", () => {
+  it("creates initial state with system and user messages", () => {
+    const model = new MockModel();
+    const agent = new Agent({
+      name: "name",
+      instructions: "You are an agent.",
+      model,
+    });
+    const state = agent.initialState("Hello!");
+    expect(state.messages).toEqual([
+      { role: "system", content: "You are an agent." },
+      { role: "user", content: "Hello!" },
+    ]);
+  });
+});
+
+describe("AgentRunner", () => {
   it("runs tool call and stops on assistant message", async () => {
     const model = new MockModel();
     const tool = new Tool({
@@ -78,20 +94,5 @@ describe("Agent", () => {
         (m: OpenAIMessage) => m.type === "function_call_output"
       )
     ).toBe(true);
-  });
-});
-
-describe("initialState", () => {
-  it("creates initial state with system and user messages", () => {
-    const state = initialState("You are an agent.", "Hello!");
-    expect(state.messages.length).toBe(2);
-    expect(state.messages[0]).toMatchObject({
-      role: "system",
-      content: "You are an agent.",
-    });
-    expect(state.messages[1]).toMatchObject({
-      role: "user",
-      content: "Hello!",
-    });
   });
 });
