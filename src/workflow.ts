@@ -110,6 +110,10 @@ export class Workflow<S extends WorkflowState = WorkflowState> {
   getEdges(): Map<NodeId, (Edge | EdgeWithCondition<S>)[]> {
     return new Map(this.edges);
   }
+
+  getNode(id: NodeId): WorkflowNodeFn<S> | undefined {
+    return this.nodes.get(id);
+  }
 }
 
 export class WorkflowRunner {
@@ -126,7 +130,7 @@ export class WorkflowRunner {
     while (queue.length) {
       const id = queue.shift()!;
 
-      const fn = workflow.getNodes().get(id);
+      const fn = workflow.getNode(id);
       if (!fn) {
         throw new Error(`Workflow node not found: ${id}`);
       }

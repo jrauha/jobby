@@ -5,7 +5,6 @@ import {
   Agent,
   AgentState,
   AIModel,
-  Context,
   FunctionCallOutputMessage,
   OpenAIMessage,
 } from "./types";
@@ -14,13 +13,7 @@ import {
   isAssistantMessage,
   isFunctionCallMessage,
 } from "./utils";
-import {
-  END,
-  START,
-  Workflow,
-  WorkflowAction,
-  WorkflowRunner,
-} from "./workflow";
+import { END, START, Workflow, WorkflowRunner } from "./workflow";
 
 const DEFAULT_MAX_ITERATIONS = 10;
 
@@ -39,7 +32,7 @@ export type OpenAIAgentOptions = {
   maxIterations?: number;
 };
 
-export class OpenAIAgent implements Agent<OpenAIMessage> {
+export class OpenAIAgent implements Agent {
   public readonly name;
   private model: AIModel<OpenAIMessage>;
   private toolRegistry: ToolRegistry;
