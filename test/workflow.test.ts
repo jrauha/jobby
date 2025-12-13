@@ -4,9 +4,11 @@ import {
   WorkflowRunner,
   workflowReducer,
   WorkflowAction,
+  WorkflowStoreState,
   START,
 } from "../src/workflow";
-import { WorkflowState } from "../src/types";
+
+type NodesState = { nodes: Record<string, Record<string, unknown>> };
 
 describe("Workflow", () => {
   describe("addNode", () => {
@@ -159,9 +161,10 @@ describe("WorkflowRunner", () => {
         initial: "data",
       });
 
-      expect(result.step1).toBe("completed");
-      expect(result.step2).toBe("completed");
-      expect(result.initial).toBe("data");
+      const r = result as NodesState;
+      expect(r.nodes.node1.step1).toBe("completed");
+      expect(r.nodes.node2.step2).toBe("completed");
+      expect(r.nodes.__START__).toBeDefined();
     });
 
     it("should execute nodes in correct order", async () => {
@@ -205,7 +208,8 @@ describe("WorkflowRunner", () => {
 
       const result = await WorkflowRunner.run(workflow);
 
-      expect(result.syncResult).toBe("success");
+      const r = result as NodesState;
+      expect(r.nodes.sync_node.syncResult).toBe("success");
     });
 
     it("should pass state between nodes", async () => {
@@ -233,7 +237,8 @@ describe("WorkflowRunner", () => {
 
       const result = await WorkflowRunner.run(workflow);
 
-      expect(result.counter).toBe(4); // (1 + 1) * 2
+      const r = result as NodesState;
+      expect(r.nodes.node3.counter).toBe(4); // (1 + 1) * 2
     });
 
     it("should handle workflow with no nodes", async () => {
@@ -243,7 +248,8 @@ describe("WorkflowRunner", () => {
         initial: "value",
       });
 
-      expect(result.initial).toBe("value");
+      const r = result as NodesState;
+      expect(r.nodes.__START__.initial).toBe("value");
     });
 
     it("should handle multiple children from one node", async () => {
@@ -335,8 +341,9 @@ describe("WorkflowRunner", () => {
 
       const result = await WorkflowRunner.run(workflow);
 
-      expect(result.value).toBe(7);
-      expect(result.result).toBe("high");
+      const r = result as NodesState;
+      expect(r.nodes.check.value).toBe(7);
+      expect(r.nodes.high.result).toBe("high");
     });
   });
 });
@@ -351,8 +358,9 @@ it("should run a workflow with initial state", async () => {
 
   const result = await WorkflowRunner.run(workflow, { input: "test" });
 
-  expect(result.input).toBe("test");
-  expect(result.processed).toBe(true);
+  const r = result as NodesState;
+  expect(r.nodes.__START__.input).toBe("test");
+  expect(r.nodes.node1.processed).toBe(true);
 });
 
 it("should run a workflow without initial state", async () => {
@@ -365,7 +373,8 @@ it("should run a workflow without initial state", async () => {
 
   const result = await WorkflowRunner.run(workflow);
 
-  expect(result.output).toBe("generated");
+  const r = result as NodesState;
+  expect(r.nodes.node1.output).toBe("generated");
 });
 
 it("should handle complex workflow execution", async () => {
@@ -393,8 +402,9 @@ it("should handle complex workflow execution", async () => {
 
   const result = await WorkflowRunner.run(workflow);
 
-  expect(result.data).toBe("processed_raw_data");
-  expect(result.saved).toBe(true);
+  const r = result as NodesState;
+  expect(r.nodes.process.data).toBe("processed_raw_data");
+  expect(r.nodes.save.saved).toBe(true);
 });
 
 describe("workflowReducer", () => {
@@ -405,15 +415,16 @@ describe("workflowReducer", () => {
       output: { result: 42, status: "complete" },
     };
 
-    const newState = workflowReducer({}, action);
+    const newState = workflowReducer({ nodes: {} }, action);
 
-    expect(newState.result).toBe(42);
-    expect(newState.status).toBe("complete");
+    const s = newState as NodesState;
+    expect(s.nodes.node1.result).toBe(42);
+    expect(s.nodes.node1.status).toBe("complete");
   });
 
   it("should merge output with existing state", () => {
-    const initialState: WorkflowState = {
-      existing: "value",
+    const initialState: WorkflowStoreState = {
+      nodes: { existingNode: { existing: "value" } },
     };
 
     const action: WorkflowAction = {
@@ -424,13 +435,14 @@ describe("workflowReducer", () => {
 
     const newState = workflowReducer(initialState, action);
 
-    expect(newState.existing).toBe("value");
-    expect(newState.newKey).toBe("newValue");
+    const s = newState as NodesState;
+    expect(s.nodes.existingNode.existing).toBe("value");
+    expect(s.nodes.node1.newKey).toBe("newValue");
   });
 
   it("should return state unchanged for unknown action", () => {
-    const initialState: WorkflowState = {
-      value: 123,
+    const initialState: WorkflowStoreState = {
+      nodes: {},
     };
 
     const action = {

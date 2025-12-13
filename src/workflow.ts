@@ -15,18 +15,25 @@ export const END = "__END__";
 export type WorkflowAction<S extends WorkflowState = WorkflowState> = {
   type: "WORKFLOW_NODE_OUTPUT";
   nodeId: string;
-  output: Partial<S>;
+  output: S;
 };
 
-export function workflowReducer<S extends WorkflowState = WorkflowState>(
-  state: S,
+export type WorkflowStoreState<S extends WorkflowState = WorkflowState> = {
+  nodes: Record<string, S>;
+};
+
+export function workflowReducer<S extends WorkflowState>(
+  state: WorkflowStoreState<S>,
   action: WorkflowAction<S>
-): S {
+): WorkflowStoreState<S> {
   switch (action.type) {
     case "WORKFLOW_NODE_OUTPUT":
       return {
         ...state,
-        ...action.output,
+        nodes: {
+          ...(state.nodes || {}),
+          [action.nodeId]: action.output,
+        },
       };
     default:
       return state;
@@ -107,12 +114,15 @@ export class WorkflowRunner {
   static async run<S extends WorkflowState = WorkflowState>(
     workflow: WorkflowGraph<S>,
     initial: S = {} as S
-  ): Promise<S> {
-    const store = new InMemoryStore<S, WorkflowAction<S>>(
+  ): Promise<WorkflowStoreState<S>> {
+    const store = new InMemoryStore<WorkflowStoreState<S>, WorkflowAction<S>>(
       workflowReducer<S>,
-      initial
+      {
+        ...initial,
+        nodes: { [START]: initial },
+      }
     );
-    const queue: Array<[NodeId, S]> = [[START, store.getState()]];
+    const queue: Array<[NodeId, S]> = [[START, initial]];
 
     while (queue.length) {
       const [id, input] = queue.shift()!;
