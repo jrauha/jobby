@@ -18,14 +18,6 @@ export type Store<S, A extends StoreEvent> = {
   dispatch(event: A): void;
 };
 
-export type Context<S extends State, E extends StoreEvent> = {
-  store: Store<S, E>;
-};
-
-export type Runnable<S extends State = State> = {
-  run(ctx: Context<S, StoreEvent>): Promise<S>;
-};
-
 /* Agent types */
 
 export type AIModel<Message> = {
@@ -39,7 +31,7 @@ export type AgentState<Message> = State<{
   messages: Message[];
 }>;
 
-export type Agent<Message> = Runnable<AgentState<Message>> & {
+export type Agent = {
   name: string;
 };
 

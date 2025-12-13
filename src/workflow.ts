@@ -1,5 +1,5 @@
 import { InMemoryStore } from "./store";
-import type { Context, Runnable, State as StoreState } from "./types";
+import type { State as StoreState } from "./types";
 
 export const START = "__START__";
 export const END = "__END__";
@@ -52,9 +52,7 @@ function isEdgeWithCondition<S extends WorkflowState = WorkflowState>(
   return (edge as EdgeWithCondition<S>).condition !== undefined;
 }
 
-export class Workflow<
-  S extends WorkflowState = WorkflowState,
-> implements Runnable<S> {
+export class Workflow<S extends WorkflowState = WorkflowState> {
   private nodes: Map<NodeId, WorkflowNodeFn<S>> = new Map();
   private edges: Map<NodeId, (Edge | EdgeWithCondition<S>)[]> = new Map();
 
@@ -112,24 +110,33 @@ export class Workflow<
   getEdges(): Map<NodeId, (Edge | EdgeWithCondition<S>)[]> {
     return new Map(this.edges);
   }
+}
 
-  async run(ctx: Context<S, WorkflowAction<S>>): Promise<S> {
+export class WorkflowRunner {
+  static async run<S extends WorkflowState = WorkflowState>(
+    workflow: Workflow<S>,
+    initial: S = {} as S
+  ): Promise<S> {
+    const store = new InMemoryStore<S, WorkflowAction<S>>(
+      workflowReducer<S>,
+      initial
+    );
     const queue: Array<NodeId> = [START];
 
     while (queue.length) {
       const id = queue.shift()!;
 
-      const fn = this.nodes.get(id);
+      const fn = workflow.getNodes().get(id);
       if (!fn) {
         throw new Error(`Workflow node not found: ${id}`);
       }
 
-      const output = await Promise.resolve(fn(ctx.store.getState()));
+      const output = await Promise.resolve(fn(store.getState()));
 
-      ctx.store.dispatch({ type: "WORKFLOW_NODE_OUTPUT", nodeId: id, output });
+      store.dispatch({ type: "WORKFLOW_NODE_OUTPUT", nodeId: id, output });
 
-      const edges = this.edges.get(id) ?? [];
-      const currentState = ctx.store.getState();
+      const edges = workflow.getEdges().get(id) ?? [];
+      const currentState = store.getState();
 
       for (const edge of edges) {
         if (edge.to === END) {
@@ -152,23 +159,6 @@ export class Workflow<
       }
     }
 
-    return ctx.store.getState();
-  }
-}
-
-export class WorkflowRunner {
-  static async run<S extends WorkflowState = WorkflowState>(
-    workflow: Runnable<S>,
-    initial: S = {} as S
-  ): Promise<S> {
-    const store = new InMemoryStore<S, WorkflowAction<S>>(
-      workflowReducer<S>,
-      initial
-    );
-    const ctx = {
-      store,
-    };
-    const final = await workflow.run(ctx);
-    return final;
+    return store.getState();
   }
 }

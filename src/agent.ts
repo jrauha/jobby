@@ -143,10 +143,8 @@ export class OpenAIAgent implements Agent<OpenAIMessage> {
     return this.instructions;
   }
 
-  async run(
-    ctx: Context<OpenAIAgenState, WorkflowAction>
-  ): Promise<OpenAIAgenState> {
-    return this.workflow.run(ctx);
+  toWorkflow(): Workflow<OpenAIAgenState> {
+    return this.workflow;
   }
 }
 
@@ -169,7 +167,7 @@ export class AgentRunner {
     input: string
   ): Promise<OpenAIAgenState> {
     const initial = initialState(agent.getInstructions(), input);
-    const final = await WorkflowRunner.run(agent, initial);
+    const final = await WorkflowRunner.run(agent.toWorkflow(), initial);
     return final;
   }
 }
