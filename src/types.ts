@@ -18,12 +18,33 @@ export type Store<S, A extends StoreEvent> = {
   dispatch(event: A): void;
 };
 
-export type Context<S extends State, E extends StoreEvent> = {
-  store: Store<S, E>;
+/* Workflow types */
+
+export type WorkflowState = State<Record<string, unknown>>;
+
+export type WorkflowNodeFn<S extends WorkflowState = WorkflowState> = (
+  state: S
+) => Promise<S> | S;
+
+export type WorkflowConditionFn<S extends WorkflowState = WorkflowState> = {
+  (state: S): NodeId | Promise<NodeId>;
 };
 
-export type Runnable<S extends State = State> = {
-  run(ctx: Context<S, StoreEvent>): Promise<S>;
+export type NodeId = string;
+
+export type Edge = {
+  to: NodeId;
+};
+
+export type EdgeWithCondition<S extends WorkflowState = WorkflowState> = {
+  to: NodeId[];
+  condition: WorkflowConditionFn<S>;
+};
+
+export type WorkflowGraph<S extends WorkflowState = WorkflowState> = {
+  getEdges(): Map<NodeId, (Edge | EdgeWithCondition<S>)[]>;
+  getNodes(): NodeId[];
+  getNode(id: NodeId): WorkflowNodeFn<S> | undefined;
 };
 
 /* Agent types */
@@ -35,12 +56,10 @@ export type AIModel<Message> = {
   ): Promise<{ output: Message[] }>;
 };
 
-export type AgentState<Message> = State<{
-  messages: Message[];
-}>;
-
-export type Agent<Message> = Runnable<AgentState<Message>> & {
+export type Agent<S extends WorkflowState = WorkflowState> = {
   name: string;
+  initialState(input: string): S;
+  toWorkflow(): WorkflowGraph<S>;
 };
 
 /* OpenAI Message types */

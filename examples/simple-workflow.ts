@@ -1,4 +1,4 @@
-import { Workflow, WorkflowRunner } from "../src";
+import { END, Workflow, WorkflowRunner } from "../src";
 
 type WorkflowState = {
   a: number;
@@ -15,19 +15,21 @@ async function main() {
   const simpleWorkflow = new Workflow<WorkflowState>()
     .addNode("sum_step", async (state) => {
       return {
+        ...state,
         sum: state.a + state.b,
       };
     })
     .addNode("sqrt_step", async (state) => {
       return {
+        ...state,
         sqrt: Math.sqrt(state.sum ?? 0),
       };
     })
     .addEdge("__START__", "sum_step")
     // Conditional edge based on sum value
     // If sum >= 0, go to sqrt_step, else end workflow
-    .addConditionalEdge("sum_step", ["sqrt_step"], ({ sum = 0 }) => {
-      return sum >= 0 ? "sqrt_step" : "__END__";
+    .addConditionalEdge("sum_step", ["sqrt_step", END], ({ sum = 0 }) => {
+      return sum >= 0 ? "sqrt_step" : END;
     });
 
   // Run with positive numbers

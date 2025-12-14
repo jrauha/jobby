@@ -3,11 +3,12 @@ import {
   Workflow,
   WorkflowRunner,
   workflowReducer,
-  WorkflowState,
   WorkflowAction,
+  WorkflowStoreState,
   START,
 } from "../src/workflow";
-import { InMemoryStore } from "../src/store";
+
+type NodesState = { nodes: Record<string, Record<string, unknown>> };
 
 describe("Workflow", () => {
   describe("addNode", () => {
@@ -137,7 +138,9 @@ describe("Workflow", () => {
       expect(result).toBe(workflow);
     });
   });
+});
 
+describe("WorkflowRunner", () => {
   describe("run", () => {
     it("should execute a simple linear workflow", async () => {
       const workflow = new Workflow();
@@ -152,21 +155,14 @@ describe("Workflow", () => {
         .addNode("node1", node1)
         .addNode("node2", node2)
         .addEdge("__START__", "node1")
-        .addEdge("node1", "node2");
+        .addEdge("node1", "node2")
+        .addEdge("node2", "__END__");
 
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        { initial: "data" }
-      );
-      const ctx = {
-        store,
-      };
+      const result = await WorkflowRunner.run(workflow, {
+        initial: "data",
+      });
 
-      const result = await workflow.run(ctx);
-
-      expect(result.step1).toBe("completed");
       expect(result.step2).toBe("completed");
-      expect(result.initial).toBe("data");
     });
 
     it("should execute nodes in correct order", async () => {
@@ -192,17 +188,10 @@ describe("Workflow", () => {
         .addNode("node3", node3)
         .addEdge("__START__", "node1")
         .addEdge("node1", "node2")
-        .addEdge("node2", "node3");
+        .addEdge("node2", "node3")
+        .addEdge("node3", "__END__");
 
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        {}
-      );
-      const ctx = {
-        store,
-      };
-
-      await workflow.run(ctx);
+      await WorkflowRunner.run(workflow);
 
       expect(executionOrder).toEqual(["node1", "node2", "node3"]);
     });
@@ -214,17 +203,12 @@ describe("Workflow", () => {
         syncResult: "success",
       });
 
-      workflow.addNode("sync_node", syncNode).addEdge("__START__", "sync_node");
+      workflow
+        .addNode("sync_node", syncNode)
+        .addEdge("__START__", "sync_node")
+        .addEdge("sync_node", "__END__");
 
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        {}
-      );
-      const ctx = {
-        store,
-      };
-
-      const result = await workflow.run(ctx);
+      const result = await WorkflowRunner.run(workflow);
 
       expect(result.syncResult).toBe("success");
     });
@@ -250,35 +234,12 @@ describe("Workflow", () => {
         .addNode("node3", node3)
         .addEdge("__START__", "node1")
         .addEdge("node1", "node2")
-        .addEdge("node2", "node3");
+        .addEdge("node2", "node3")
+        .addEdge("node3", "__END__");
 
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        {}
-      );
-      const ctx = {
-        store,
-      };
-
-      const result = await workflow.run(ctx);
+      const result = await WorkflowRunner.run(workflow);
 
       expect(result.counter).toBe(4); // (1 + 1) * 2
-    });
-
-    it("should handle workflow with no nodes", async () => {
-      const workflow = new Workflow();
-
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        { initial: "value" }
-      );
-      const ctx = {
-        store,
-      };
-
-      const result = await workflow.run(ctx);
-
-      expect(result.initial).toBe("value");
     });
 
     it("should handle multiple children from one node", async () => {
@@ -304,17 +265,11 @@ describe("Workflow", () => {
         .addNode("node3", node3)
         .addEdge("__START__", "node1")
         .addEdge("node1", "node2")
-        .addEdge("node1", "node3");
+        .addEdge("node1", "node3")
+        .addEdge("node2", "__END__")
+        .addEdge("node3", "__END__");
 
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        {}
-      );
-      const ctx = {
-        store,
-      };
-
-      await workflow.run(ctx);
+      await WorkflowRunner.run(workflow);
 
       // node1 should execute first, then node2 and node3 in insertion order
       expect(executionOrder[0]).toBe("node1");
@@ -345,17 +300,10 @@ describe("Workflow", () => {
           // Simulate async condition evaluation
           await new Promise((resolve) => setTimeout(resolve, 10));
           return (state.value as number) > 5 ? "node2" : "node2";
-        });
+        })
+        .addEdge("node2", "__END__");
 
-      const store = new InMemoryStore<WorkflowState, WorkflowAction>(
-        workflowReducer,
-        {}
-      );
-      const ctx = {
-        store,
-      };
-
-      await workflow.run(ctx);
+      await WorkflowRunner.run(workflow);
 
       expect(executionOrder).toEqual(["node1", "node2"]);
     });
@@ -382,72 +330,74 @@ describe("Workflow", () => {
         .addEdge("__START__", "check")
         .addConditionalEdge("check", ["low", "high"], (state) =>
           (state.value as number) < 5 ? "low" : "high"
-        );
+        )
+        .addEdge("high", "__END__");
 
       const result = await WorkflowRunner.run(workflow);
 
-      expect(result.value).toBe(7);
       expect(result.result).toBe("high");
     });
   });
 });
 
-describe("WorkflowRunner", () => {
-  it("should run a workflow with initial state", async () => {
-    const workflow = new Workflow();
-    const node1 = async () => ({
-      processed: true,
-    });
-
-    workflow.addNode("node1", node1).addEdge("__START__", "node1");
-
-    const result = await WorkflowRunner.run(workflow, { input: "test" });
-
-    expect(result.input).toBe("test");
-    expect(result.processed).toBe(true);
+it("should run a workflow with initial state", async () => {
+  const workflow = new Workflow();
+  const node1 = async () => ({
+    processed: true,
   });
 
-  it("should run a workflow without initial state", async () => {
-    const workflow = new Workflow();
-    const node1 = async () => ({
-      output: "generated",
-    });
+  workflow
+    .addNode("node1", node1)
+    .addEdge("__START__", "node1")
+    .addEdge("node1", "__END__");
 
-    workflow.addNode("node1", node1).addEdge("__START__", "node1");
+  const result = await WorkflowRunner.run(workflow, { input: "test" });
 
-    const result = await WorkflowRunner.run(workflow);
+  expect(result.processed).toBe(true);
+});
 
-    expect(result.output).toBe("generated");
+it("should run a workflow without initial state", async () => {
+  const workflow = new Workflow();
+  const node1 = async () => ({
+    output: "generated",
   });
 
-  it("should handle complex workflow execution", async () => {
-    const workflow = new Workflow();
+  workflow
+    .addNode("node1", node1)
+    .addEdge("__START__", "node1")
+    .addEdge("node1", "__END__");
 
-    const fetchData = async () => ({
-      data: "raw_data",
-    });
+  const result = await WorkflowRunner.run(workflow);
 
-    const processData = async (state: Record<string, unknown>) => ({
-      data: `processed_${state.data}`,
-    });
+  expect(result.output).toBe("generated");
+});
 
-    const saveData = async () => ({
-      saved: true,
-    });
+it("should handle complex workflow execution", async () => {
+  const workflow = new Workflow();
 
-    workflow
-      .addNode("fetch", fetchData)
-      .addNode("process", processData)
-      .addNode("save", saveData)
-      .addEdge("__START__", "fetch")
-      .addEdge("fetch", "process")
-      .addEdge("process", "save");
-
-    const result = await WorkflowRunner.run(workflow);
-
-    expect(result.data).toBe("processed_raw_data");
-    expect(result.saved).toBe(true);
+  const fetchData = async () => ({
+    data: "raw_data",
   });
+
+  const processData = async (state: Record<string, unknown>) => ({
+    data: `processed_${state.data}`,
+  });
+
+  const saveData = async () => ({
+    saved: true,
+  });
+
+  workflow
+    .addNode("fetch", fetchData)
+    .addNode("process", processData)
+    .addNode("save", saveData)
+    .addEdge("__START__", "fetch")
+    .addEdge("fetch", "process")
+    .addEdge("process", "save")
+    .addEdge("save", "__END__");
+
+  const result = await WorkflowRunner.run(workflow);
+  expect(result.saved).toBe(true);
 });
 
 describe("workflowReducer", () => {
@@ -458,15 +408,17 @@ describe("workflowReducer", () => {
       output: { result: 42, status: "complete" },
     };
 
-    const newState = workflowReducer({}, action);
+    const newState = workflowReducer({ status: "idle", nodes: {} }, action);
 
-    expect(newState.result).toBe(42);
-    expect(newState.status).toBe("complete");
+    const s = newState as NodesState;
+    expect(s.nodes.node1.result).toBe(42);
+    expect(s.nodes.node1.status).toBe("complete");
   });
 
   it("should merge output with existing state", () => {
-    const initialState: WorkflowState = {
-      existing: "value",
+    const initialState: WorkflowStoreState = {
+      status: "idle",
+      nodes: { existingNode: { existing: "value" } },
     };
 
     const action: WorkflowAction = {
@@ -477,13 +429,15 @@ describe("workflowReducer", () => {
 
     const newState = workflowReducer(initialState, action);
 
-    expect(newState.existing).toBe("value");
-    expect(newState.newKey).toBe("newValue");
+    const s = newState as NodesState;
+    expect(s.nodes.existingNode.existing).toBe("value");
+    expect(s.nodes.node1.newKey).toBe("newValue");
   });
 
   it("should return state unchanged for unknown action", () => {
-    const initialState: WorkflowState = {
-      value: 123,
+    const initialState: WorkflowStoreState = {
+      status: "idle",
+      nodes: {},
     };
 
     const action = {

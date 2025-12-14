@@ -73,11 +73,13 @@ type WorkflowState = {
 const workflow = new Workflow<WorkflowState>()
   .addNode("sum_step", async (state) => {
     return {
+      ...state,
       sum: state.a + state.b,
     };
   })
   .addNode("sqrt_step", async (state) => {
     return {
+      ...state,
       sqrt: Math.sqrt(state.sum ?? 0),
     };
   })

@@ -5,7 +5,7 @@ import {
   isFunctionCallMessage,
 } from "../src/utils";
 
-import { Message, State } from "../src";
+import { OpenAIMessage as Message, State } from "../src";
 
 describe("utils", () => {
   it("getLastMessage returns last or null", () => {
