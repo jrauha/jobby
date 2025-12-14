@@ -4,9 +4,9 @@ import { Tool, ToolArgsParseError } from "./tools";
 import {
   Agent,
   AIModel,
+  CompiledWorkflow,
   FunctionCallOutputMessage,
   OpenAIMessage,
-  WorkflowGraph,
   WorkflowState,
 } from "./types";
 import {
@@ -40,7 +40,7 @@ export class OpenAIAgent implements Agent<OpenAIAgenState> {
   private toolRegistry: ToolRegistry;
   private maxIterations: number;
   private instructions: string;
-  private workflow: WorkflowGraph<OpenAIAgenState>;
+  private workflow: CompiledWorkflow<OpenAIAgenState>;
 
   constructor({
     name,
@@ -57,7 +57,7 @@ export class OpenAIAgent implements Agent<OpenAIAgenState> {
     this.workflow = this.buildWorkflow();
   }
 
-  private buildWorkflow(): WorkflowGraph<OpenAIAgenState> {
+  private buildWorkflow(): CompiledWorkflow<OpenAIAgenState> {
     const workflow = new Workflow<OpenAIAgenState>();
 
     // Model step: call the AI model
@@ -132,7 +132,7 @@ export class OpenAIAgent implements Agent<OpenAIAgenState> {
     });
 
     workflow.addEdge(FUNCTION_STEP, MODEL_STEP);
-    return workflow;
+    return workflow.compile();
   }
 
   initialState(input: string): OpenAIAgenState {
@@ -145,7 +145,7 @@ export class OpenAIAgent implements Agent<OpenAIAgenState> {
     };
   }
 
-  toWorkflow(): WorkflowGraph<OpenAIAgenState> {
+  toWorkflow(): CompiledWorkflow<OpenAIAgenState> {
     return this.workflow;
   }
 }

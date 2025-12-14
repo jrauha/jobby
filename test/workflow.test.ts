@@ -11,6 +11,42 @@ import {
 type NodesState = { nodes: Record<string, Record<string, unknown>> };
 
 describe("Workflow", () => {
+  describe("compile", () => {
+    it("should autowire nodes without outgoing edges to END", () => {
+      const workflow = new Workflow();
+      const lone = async () => ({ done: true });
+
+      workflow.addNode("LONE", lone).addEdge("__START__", "LONE");
+
+      const compiled = workflow.compile();
+      const edges = compiled.getEdges();
+
+      expect(edges.get("LONE")).toEqual([{ to: "__END__" }]);
+    });
+
+    it("should produce snapshot of the original workflow", () => {
+      const workflow = new Workflow();
+      const a = async () => ({ a: 1 });
+      const b = async () => ({ b: 2 });
+
+      workflow.addNode("A", a).addNode("B", b).addEdge("__START__", "A");
+
+      const compiled = workflow.compile();
+      const beforeNodes = compiled.getNodes();
+      const beforeEdges = compiled.getEdges();
+
+      // Mutate the original workflow after compile
+      const c = async () => ({ c: 3 });
+      workflow.addNode("C", c).addEdge("A", "B").addEdge("B", "C");
+
+      // Compiled graph should remain unchanged
+      expect(compiled.getNodes()).toEqual(beforeNodes);
+      expect(Array.from(compiled.getEdges().entries())).toEqual(
+        Array.from(beforeEdges.entries())
+      );
+    });
+  });
+
   describe("addNode", () => {
     it("should add a node to the workflow", () => {
       const workflow = new Workflow();

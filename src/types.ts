@@ -45,6 +45,16 @@ export type WorkflowGraph<S extends WorkflowState = WorkflowState> = {
   getEdges(): Map<NodeId, (Edge | EdgeWithCondition<S>)[]>;
   getNodes(): NodeId[];
   getNode(id: NodeId): WorkflowNodeFn<S> | undefined;
+  compile(): CompiledWorkflow<S>;
+};
+
+export declare const COMPILED_BRAND: unique symbol;
+
+export type CompiledWorkflow<S extends WorkflowState = WorkflowState> = {
+  getEdges(): Map<NodeId, (Edge | EdgeWithCondition<S>)[]>;
+  getNodes(): NodeId[];
+  getNode(id: NodeId): WorkflowNodeFn<S> | undefined;
+  readonly __compiled: typeof COMPILED_BRAND;
 };
 
 /* Agent types */
@@ -59,7 +69,7 @@ export type AIModel<Message> = {
 export type Agent<S extends WorkflowState = WorkflowState> = {
   name: string;
   initialState(input: string): S;
-  toWorkflow(): WorkflowGraph<S>;
+  toWorkflow(): CompiledWorkflow<S>;
 };
 
 /* OpenAI Message types */

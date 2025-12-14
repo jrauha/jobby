@@ -1,5 +1,6 @@
 import { InMemoryStore } from "./store";
 import type {
+  CompiledWorkflow,
   Edge,
   EdgeWithCondition,
   NodeId,
@@ -8,6 +9,7 @@ import type {
   WorkflowNodeFn,
   WorkflowState,
 } from "./types";
+import { COMPILED_BRAND } from "./types";
 
 export const START = "__START__";
 export const END = "__END__";
@@ -91,7 +93,15 @@ function isEdgeWithCondition<S extends WorkflowState = WorkflowState>(
   return (edge as EdgeWithCondition<S>).condition !== undefined;
 }
 
-export class Workflow<S extends WorkflowState = WorkflowState> {
+function isWorkflowCompiled<S extends WorkflowState = WorkflowState>(
+  workflow: CompiledWorkflow<S> | Workflow<S>
+): workflow is CompiledWorkflow<S> {
+  return (workflow as CompiledWorkflow<S>).__compiled === COMPILED_BRAND;
+}
+
+export class Workflow<
+  S extends WorkflowState = WorkflowState,
+> implements WorkflowGraph<S> {
   private nodes: Map<NodeId, WorkflowNodeFn<S>> = new Map();
   private edges: Map<NodeId, (Edge | EdgeWithCondition<S>)[]> = new Map();
 
@@ -153,11 +163,48 @@ export class Workflow<S extends WorkflowState = WorkflowState> {
   getNode(id: NodeId): WorkflowNodeFn<S> | undefined {
     return this.nodes.get(id);
   }
+
+  compile(): CompiledWorkflow<S> {
+    if (!this.nodes.has(START)) {
+      throw new Error("Workflow is missing START node");
+    }
+    if (!this.nodes.has(END)) {
+      throw new Error("Workflow is missing END node");
+    }
+
+    const nodesSnapshot = Array.from(this.nodes.keys());
+    const nodesMapSnapshot = new Map(this.nodes);
+    const edgesSnapshot = new Map<NodeId, (Edge | EdgeWithCondition<S>)[]>();
+    for (const [k, v] of this.edges.entries()) {
+      edgesSnapshot.set(
+        k,
+        v.map((e) => ({ ...e }))
+      );
+    }
+
+    // Autowire edges for nodes without outgoing edges to END
+    for (const nodeId of nodesSnapshot) {
+      if (!edgesSnapshot.has(nodeId)) {
+        if (nodeId !== END) {
+          edgesSnapshot.set(nodeId, [{ to: END }]);
+        }
+      }
+    }
+
+    const graph: CompiledWorkflow<S> = {
+      getNodes: () => nodesSnapshot.slice(),
+      getEdges: () => new Map(edgesSnapshot),
+      getNode: (id: NodeId) => nodesMapSnapshot.get(id),
+      __compiled: COMPILED_BRAND,
+    };
+
+    return graph;
+  }
 }
 
 export class WorkflowRunner {
   static async run<S extends WorkflowState = WorkflowState>(
-    workflow: WorkflowGraph<S>,
+    workflow: CompiledWorkflow<S> | Workflow<S>,
     initial: S = {} as S,
     options: {
       onWorkflowEvent?: (
@@ -174,17 +221,21 @@ export class WorkflowRunner {
       }
     );
 
+    const compiledWorkflow = isWorkflowCompiled<S>(workflow)
+      ? workflow
+      : workflow.compile();
+
     if (options.onWorkflowEvent) {
       store.subscribe(options.onWorkflowEvent);
     }
 
     const queue: Array<[NodeId, S]> = [[START, initial]];
-    const edges = workflow.getEdges();
+    const edges = compiledWorkflow.getEdges();
 
     while (queue.length) {
       const [id, input] = queue.shift()!;
 
-      const fn = workflow.getNode(id);
+      const fn = compiledWorkflow.getNode(id);
       if (!fn) {
         throw new Error(`Workflow node not found: ${id}`);
       }
