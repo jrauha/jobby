@@ -179,6 +179,7 @@ export class WorkflowRunner {
     }
 
     const queue: Array<[NodeId, S]> = [[START, initial]];
+    const edges = workflow.getEdges();
 
     while (queue.length) {
       const [id, input] = queue.shift()!;
@@ -194,9 +195,9 @@ export class WorkflowRunner {
 
       store.dispatch({ type: "WORKFLOW_NODE_OUTPUT", nodeId: id, output });
 
-      const edges = workflow.getEdges().get(id) ?? [];
+      const neighbors = edges.get(id) ?? [];
 
-      for (const edge of edges) {
+      for (const edge of neighbors) {
         if (isEdgeWithCondition<S>(edge)) {
           const targetId = await Promise.resolve(edge.condition(output));
           if (!edge.to.includes(targetId)) {

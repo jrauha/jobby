@@ -155,16 +155,14 @@ describe("WorkflowRunner", () => {
         .addNode("node1", node1)
         .addNode("node2", node2)
         .addEdge("__START__", "node1")
-        .addEdge("node1", "node2");
+        .addEdge("node1", "node2")
+        .addEdge("node2", "__END__");
 
       const result = await WorkflowRunner.run(workflow, {
         initial: "data",
       });
 
-      const r = result as NodesState;
-      expect(r.nodes.node1.step1).toBe("completed");
-      expect(r.nodes.node2.step2).toBe("completed");
-      expect(r.nodes.__START__).toBeDefined();
+      expect(result.step2).toBe("completed");
     });
 
     it("should execute nodes in correct order", async () => {
@@ -190,7 +188,8 @@ describe("WorkflowRunner", () => {
         .addNode("node3", node3)
         .addEdge("__START__", "node1")
         .addEdge("node1", "node2")
-        .addEdge("node2", "node3");
+        .addEdge("node2", "node3")
+        .addEdge("node3", "__END__");
 
       await WorkflowRunner.run(workflow);
 
@@ -204,12 +203,14 @@ describe("WorkflowRunner", () => {
         syncResult: "success",
       });
 
-      workflow.addNode("sync_node", syncNode).addEdge("__START__", "sync_node");
+      workflow
+        .addNode("sync_node", syncNode)
+        .addEdge("__START__", "sync_node")
+        .addEdge("sync_node", "__END__");
 
       const result = await WorkflowRunner.run(workflow);
 
-      const r = result as NodesState;
-      expect(r.nodes.sync_node.syncResult).toBe("success");
+      expect(result.syncResult).toBe("success");
     });
 
     it("should pass state between nodes", async () => {
@@ -233,23 +234,12 @@ describe("WorkflowRunner", () => {
         .addNode("node3", node3)
         .addEdge("__START__", "node1")
         .addEdge("node1", "node2")
-        .addEdge("node2", "node3");
+        .addEdge("node2", "node3")
+        .addEdge("node3", "__END__");
 
       const result = await WorkflowRunner.run(workflow);
 
-      const r = result as NodesState;
-      expect(r.nodes.node3.counter).toBe(4); // (1 + 1) * 2
-    });
-
-    it("should handle workflow with no nodes", async () => {
-      const workflow = new Workflow();
-
-      const result = await WorkflowRunner.run(workflow, {
-        initial: "value",
-      });
-
-      const r = result as NodesState;
-      expect(r.nodes.__START__.initial).toBe("value");
+      expect(result.counter).toBe(4); // (1 + 1) * 2
     });
 
     it("should handle multiple children from one node", async () => {
@@ -275,7 +265,9 @@ describe("WorkflowRunner", () => {
         .addNode("node3", node3)
         .addEdge("__START__", "node1")
         .addEdge("node1", "node2")
-        .addEdge("node1", "node3");
+        .addEdge("node1", "node3")
+        .addEdge("node2", "__END__")
+        .addEdge("node3", "__END__");
 
       await WorkflowRunner.run(workflow);
 
@@ -308,7 +300,8 @@ describe("WorkflowRunner", () => {
           // Simulate async condition evaluation
           await new Promise((resolve) => setTimeout(resolve, 10));
           return (state.value as number) > 5 ? "node2" : "node2";
-        });
+        })
+        .addEdge("node2", "__END__");
 
       await WorkflowRunner.run(workflow);
 
@@ -337,13 +330,12 @@ describe("WorkflowRunner", () => {
         .addEdge("__START__", "check")
         .addConditionalEdge("check", ["low", "high"], (state) =>
           (state.value as number) < 5 ? "low" : "high"
-        );
+        )
+        .addEdge("high", "__END__");
 
       const result = await WorkflowRunner.run(workflow);
 
-      const r = result as NodesState;
-      expect(r.nodes.check.value).toBe(7);
-      expect(r.nodes.high.result).toBe("high");
+      expect(result.result).toBe("high");
     });
   });
 });
@@ -354,13 +346,14 @@ it("should run a workflow with initial state", async () => {
     processed: true,
   });
 
-  workflow.addNode("node1", node1).addEdge("__START__", "node1");
+  workflow
+    .addNode("node1", node1)
+    .addEdge("__START__", "node1")
+    .addEdge("node1", "__END__");
 
   const result = await WorkflowRunner.run(workflow, { input: "test" });
 
-  const r = result as NodesState;
-  expect(r.nodes.__START__.input).toBe("test");
-  expect(r.nodes.node1.processed).toBe(true);
+  expect(result.processed).toBe(true);
 });
 
 it("should run a workflow without initial state", async () => {
@@ -369,12 +362,14 @@ it("should run a workflow without initial state", async () => {
     output: "generated",
   });
 
-  workflow.addNode("node1", node1).addEdge("__START__", "node1");
+  workflow
+    .addNode("node1", node1)
+    .addEdge("__START__", "node1")
+    .addEdge("node1", "__END__");
 
   const result = await WorkflowRunner.run(workflow);
 
-  const r = result as NodesState;
-  expect(r.nodes.node1.output).toBe("generated");
+  expect(result.output).toBe("generated");
 });
 
 it("should handle complex workflow execution", async () => {
@@ -398,13 +393,11 @@ it("should handle complex workflow execution", async () => {
     .addNode("save", saveData)
     .addEdge("__START__", "fetch")
     .addEdge("fetch", "process")
-    .addEdge("process", "save");
+    .addEdge("process", "save")
+    .addEdge("save", "__END__");
 
   const result = await WorkflowRunner.run(workflow);
-
-  const r = result as NodesState;
-  expect(r.nodes.process.data).toBe("processed_raw_data");
-  expect(r.nodes.save.saved).toBe(true);
+  expect(result.saved).toBe(true);
 });
 
 describe("workflowReducer", () => {
@@ -415,7 +408,7 @@ describe("workflowReducer", () => {
       output: { result: 42, status: "complete" },
     };
 
-    const newState = workflowReducer({ nodes: {} }, action);
+    const newState = workflowReducer({ status: "idle", nodes: {} }, action);
 
     const s = newState as NodesState;
     expect(s.nodes.node1.result).toBe(42);
@@ -424,6 +417,7 @@ describe("workflowReducer", () => {
 
   it("should merge output with existing state", () => {
     const initialState: WorkflowStoreState = {
+      status: "idle",
       nodes: { existingNode: { existing: "value" } },
     };
 
@@ -442,6 +436,7 @@ describe("workflowReducer", () => {
 
   it("should return state unchanged for unknown action", () => {
     const initialState: WorkflowStoreState = {
+      status: "idle",
       nodes: {},
     };
 
