@@ -157,10 +157,6 @@ export class AgentRunner {
   ): Promise<S> {
     const initial = agent.initialState(input);
     const final = await WorkflowRunner.run(agent.toWorkflow(), initial);
-    const endState = final.nodes[END];
-    if (!endState) {
-      throw new Error("Workflow did not reach END node");
-    }
-    return endState;
+    return final;
   }
 }

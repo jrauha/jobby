@@ -12,13 +12,34 @@ import type {
 export const START = "__START__";
 export const END = "__END__";
 
-export type WorkflowAction<S extends WorkflowState = WorkflowState> = {
-  type: "WORKFLOW_NODE_OUTPUT";
-  nodeId: string;
-  output: S;
-};
+type WorkflowStatus = "idle" | "running" | "completed" | "error";
+
+export type WorkflowAction<S extends WorkflowState = WorkflowState> =
+  | {
+      type: "WORKFLOW_NODE_INPUT";
+      nodeId: string;
+      input: S;
+    }
+  | {
+      type: "WORKFLOW_NODE_OUTPUT";
+      nodeId: string;
+      output: S;
+    }
+  | {
+      type: "WORKFLOW_START";
+    }
+  | {
+      type: "WORKFLOW_END";
+    }
+  | {
+      type: "WORKFLOW_ERROR";
+      error: string;
+    };
 
 export type WorkflowStoreState<S extends WorkflowState = WorkflowState> = {
+  activeNodes?: string[];
+  status: WorkflowStatus;
+  error?: string;
   nodes: Record<string, S>;
 };
 
@@ -27,13 +48,37 @@ export function workflowReducer<S extends WorkflowState>(
   action: WorkflowAction<S>
 ): WorkflowStoreState<S> {
   switch (action.type) {
+    case "WORKFLOW_NODE_INPUT":
+      return {
+        ...state,
+        activeNodes: [...(state.activeNodes || []), action.nodeId],
+      };
     case "WORKFLOW_NODE_OUTPUT":
       return {
         ...state,
+        activeNodes: (state.activeNodes || []).filter(
+          (id) => id !== action.nodeId
+        ),
         nodes: {
           ...(state.nodes || {}),
           [action.nodeId]: action.output,
         },
+      };
+    case "WORKFLOW_START":
+      return {
+        ...state,
+        status: "running",
+      };
+    case "WORKFLOW_END":
+      return {
+        ...state,
+        status: "completed",
+      };
+    case "WORKFLOW_ERROR":
+      return {
+        ...state,
+        status: "error",
+        error: action.error,
       };
     default:
       return state;
@@ -113,15 +158,26 @@ export class Workflow<S extends WorkflowState = WorkflowState> {
 export class WorkflowRunner {
   static async run<S extends WorkflowState = WorkflowState>(
     workflow: WorkflowGraph<S>,
-    initial: S = {} as S
-  ): Promise<WorkflowStoreState<S>> {
+    initial: S = {} as S,
+    options: {
+      onWorkflowEvent?: (
+        state: WorkflowStoreState<S>,
+        action: WorkflowAction<S>
+      ) => void;
+    } = {}
+  ): Promise<S> {
     const store = new InMemoryStore<WorkflowStoreState<S>, WorkflowAction<S>>(
       workflowReducer<S>,
       {
-        ...initial,
+        status: "idle",
         nodes: { [START]: initial },
       }
     );
+
+    if (options.onWorkflowEvent) {
+      store.subscribe(options.onWorkflowEvent);
+    }
+
     const queue: Array<[NodeId, S]> = [[START, initial]];
 
     while (queue.length) {
@@ -131,6 +187,8 @@ export class WorkflowRunner {
       if (!fn) {
         throw new Error(`Workflow node not found: ${id}`);
       }
+
+      store.dispatch({ type: "WORKFLOW_NODE_INPUT", nodeId: id, input });
 
       const output = await Promise.resolve(fn(input));
 
@@ -153,6 +211,10 @@ export class WorkflowRunner {
       }
     }
 
-    return store.getState();
+    const finalState = store.getState().nodes[END];
+    if (!finalState) {
+      throw new Error("Workflow did not reach END node");
+    }
+    return finalState;
   }
 }
