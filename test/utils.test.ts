@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  getLastNonFunctionCallMessageIndex,
   getLastMessage,
   isAssistantMessage,
   isFunctionCallMessage,
@@ -17,6 +18,18 @@ describe("utils", () => {
     };
     expect(getLastMessage(s)).toMatchObject({ role: "user", content: "hi" });
     expect(getLastMessage({ messages: [] })).toBeNull();
+  });
+
+  it("getLastAssistantMessageIndex returns index or null", () => {
+    const s: State<{ messages: Message[] }> = {
+      messages: [
+        { type: "message", role: "system", content: "sys" },
+        { type: "message", role: "assistant", content: "hi" },
+        { type: "function_call", name: "t", arguments: "{}", call_id: "1" },
+      ],
+    };
+    expect(getLastNonFunctionCallMessageIndex(s)).toBe(1);
+    expect(getLastNonFunctionCallMessageIndex({ messages: [] })).toBeNull();
   });
 
   it("isAssistantMessage detects assistant output items", () => {
