@@ -8,8 +8,6 @@ import {
   START,
 } from "../src/workflow";
 
-type NodesState = { nodes: Record<string, Record<string, unknown>> };
-
 describe("Workflow", () => {
   describe("compile", () => {
     it("should autowire nodes without outgoing edges to END", () => {
@@ -446,9 +444,9 @@ describe("workflowReducer", () => {
 
     const newState = workflowReducer({ status: "idle", nodes: {} }, action);
 
-    const s = newState as NodesState;
-    expect(s.nodes.node1.result).toBe(42);
-    expect(s.nodes.node1.status).toBe("complete");
+    const s = newState;
+    expect(s.nodes.node1?.result).toBe(42);
+    expect(s.nodes.node1?.status).toBe("complete");
   });
 
   it("should merge output with existing state", () => {
@@ -465,9 +463,9 @@ describe("workflowReducer", () => {
 
     const newState = workflowReducer(initialState, action);
 
-    const s = newState as NodesState;
-    expect(s.nodes.existingNode.existing).toBe("value");
-    expect(s.nodes.node1.newKey).toBe("newValue");
+    const s = newState;
+    expect(s.nodes.existingNode?.existing).toBe("value");
+    expect(s.nodes.node1?.newKey).toBe("newValue");
   });
 
   it("should return state unchanged for unknown action", () => {

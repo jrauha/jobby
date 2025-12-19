@@ -41,7 +41,6 @@
     "moduleDetection": "force",
     "skipLibCheck": true,
     "experimentalDecorators": true
-  }
-  ,
+  },
   "include": ["src/**/*"]
 }

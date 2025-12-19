@@ -5,6 +5,7 @@
   "scripts": {
     "test": "vitest",
     "build": "tsc",
+    "typecheck": "tsc -p tsconfig.tests.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
