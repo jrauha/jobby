@@ -229,6 +229,8 @@ export class WorkflowRunner {
       store.subscribe(options.onWorkflowEvent);
     }
 
+    store.dispatch({ type: "WORKFLOW_START" });
+
     const queue: Array<[NodeId, S]> = [[START, initial]];
     const edges = compiledWorkflow.getEdges();
 
@@ -262,6 +264,8 @@ export class WorkflowRunner {
         }
       }
     }
+
+    store.dispatch({ type: "WORKFLOW_END" });
 
     const finalState = store.getState().nodes[END];
     if (!finalState) {

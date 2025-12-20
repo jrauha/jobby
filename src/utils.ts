@@ -12,6 +12,19 @@ export function getLastMessage(
   return messages.length === 0 ? null : (messages[messages.length - 1] ?? null);
 }
 
+export function getLastNonFunctionCallMessageIndex(
+  state: State<{ messages: OpenAIMessage[] }>
+): number | null {
+  const messages = state.messages;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m && !isFunctionCallMessage(m)) {
+      return i;
+    }
+  }
+  return null;
+}
+
 export function isAssistantMessage(m: OpenAIMessage): m is ResponseOutputItem {
   if (typeof m !== "object" || m === null) return false;
   const rec = m as Record<string, unknown>;

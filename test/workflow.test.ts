@@ -371,6 +371,40 @@ describe("WorkflowRunner", () => {
 
       expect(result.result).toBe("high");
     });
+
+    it("should emit workflow start and end events", async () => {
+      const workflow = new Workflow();
+
+      const node = async (state: Record<string, unknown>) => ({
+        ...state,
+        done: true,
+      });
+
+      workflow
+        .addNode("node", node)
+        .addEdge("__START__", "node")
+        .addEdge("node", "__END__");
+
+      const actions: string[] = [];
+      const statuses: string[] = [];
+
+      const result = await WorkflowRunner.run(
+        workflow,
+        {},
+        {
+          onWorkflowEvent: (state, action) => {
+            actions.push(action.type);
+            statuses.push(state.status);
+          },
+        }
+      );
+
+      expect(result.done).toBe(true);
+
+      // First dispatched action should be start; last should be end
+      expect(actions[0]).toBe("WORKFLOW_START");
+      expect(actions[actions.length - 1]).toBe("WORKFLOW_END");
+    });
   });
 });
 

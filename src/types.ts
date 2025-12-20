@@ -48,7 +48,7 @@ export type WorkflowGraph<S extends WorkflowState = WorkflowState> = {
   compile(): CompiledWorkflow<S>;
 };
 
-export declare const COMPILED_BRAND: unique symbol;
+export const COMPILED_BRAND = Symbol("CompiledWorkflow");
 
 export type CompiledWorkflow<S extends WorkflowState = WorkflowState> = {
   getEdges(): Map<NodeId, (Edge | EdgeWithCondition<S>)[]>;

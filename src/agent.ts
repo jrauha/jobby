@@ -10,6 +10,7 @@ import {
   WorkflowState,
 } from "./types";
 import {
+  getLastNonFunctionCallMessageIndex,
   getLastMessage,
   isAssistantMessage,
   isFunctionCallMessage,
@@ -80,10 +81,13 @@ export class OpenAIAgent implements Agent<OpenAIAgenState> {
       const functionCallOutputs: FunctionCallOutputMessage[] = [];
 
       // Find all function call messages since the last function step
-      const idx =
-        state.messages.findLastIndex((m) => !isFunctionCallMessage(m)) + 1;
+      const idx = getLastNonFunctionCallMessageIndex(state);
 
-      for (let i = idx; i < state.messages.length; i++) {
+      if (idx === null) {
+        throw new Error("No function call message found for function step.");
+      }
+
+      for (let i = idx + 1; i < state.messages.length; i++) {
         const lm = state.messages[i];
         if (lm && isFunctionCallMessage(lm)) {
           if (isFunctionCallMessage(lm)) {
