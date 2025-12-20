@@ -63,14 +63,14 @@ Jobby supports building multi-step workflows with conditional branching. Workflo
 ```ts
 import { Workflow, WorkflowRunner } from './src/index'
 
-type WorkflowState = {
-  a: number;
-  b: number;
-  sum?: number;
-  sqrt?: number;
-};
+const WorkflowState = z.object({
+  a: z.number(),
+  b: z.number(),
+  sum: z.number().optional(),
+  sqrt: z.number().optional(),
+});
 
-const workflow = new Workflow<WorkflowState>()
+const workflow = new Workflow({ schema: WorkflowState })
   .addNode("sum_step", async (state) => {
     return {
       ...state,
