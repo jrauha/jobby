@@ -3,6 +3,7 @@ import {
   ResponseInputItem,
   ResponseOutputItem,
 } from "openai/resources/responses/responses.js";
+import * as z from "zod";
 
 /* Store types */
 
@@ -42,6 +43,7 @@ export type EdgeWithCondition<S extends WorkflowState = WorkflowState> = {
 };
 
 export type WorkflowGraph<S extends WorkflowState = WorkflowState> = {
+  readonly schema: z.ZodType<S>;
   getEdges(): Map<NodeId, (Edge | EdgeWithCondition<S>)[]>;
   getNodes(): NodeId[];
   getNode(id: NodeId): WorkflowNodeFn<S> | undefined;
@@ -51,6 +53,7 @@ export type WorkflowGraph<S extends WorkflowState = WorkflowState> = {
 export const COMPILED_BRAND = Symbol("CompiledWorkflow");
 
 export type CompiledWorkflow<S extends WorkflowState = WorkflowState> = {
+  readonly schema: z.ZodType<S>;
   getEdges(): Map<NodeId, (Edge | EdgeWithCondition<S>)[]>;
   getNodes(): NodeId[];
   getNode(id: NodeId): WorkflowNodeFn<S> | undefined;

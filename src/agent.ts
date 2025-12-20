@@ -16,16 +16,22 @@ import {
   isFunctionCallMessage,
 } from "./utils";
 import { END, START, Workflow, WorkflowRunner } from "./workflow";
+import { z } from "zod";
 
 const DEFAULT_MAX_ITERATIONS = 10;
 
 const MODEL_STEP = "model_step";
 const FUNCTION_STEP = "function_step";
 
-export type OpenAIAgenState = {
+export type OpenAIAgentState = {
   iteration: number;
   messages: OpenAIMessage[];
 };
+
+export const OpenAIAgentStateSchema = z.object({
+  iteration: z.number().min(0),
+  messages: z.array(z.any()),
+});
 
 export type OpenAIAgentOptions = {
   name: string;
@@ -35,13 +41,13 @@ export type OpenAIAgentOptions = {
   maxIterations?: number;
 };
 
-export class OpenAIAgent implements Agent<OpenAIAgenState> {
+export class OpenAIAgent implements Agent<OpenAIAgentState> {
   public readonly name;
   private model: AIModel<OpenAIMessage>;
   private toolRegistry: ToolRegistry;
   private maxIterations: number;
   private instructions: string;
-  private workflow: CompiledWorkflow<OpenAIAgenState>;
+  private workflow: CompiledWorkflow<OpenAIAgentState>;
 
   constructor({
     name,
@@ -58,11 +64,13 @@ export class OpenAIAgent implements Agent<OpenAIAgenState> {
     this.workflow = this.buildWorkflow();
   }
 
-  private buildWorkflow(): CompiledWorkflow<OpenAIAgenState> {
-    const workflow = new Workflow<OpenAIAgenState>();
+  private buildWorkflow(): CompiledWorkflow<OpenAIAgentState> {
+    const workflow = new Workflow<OpenAIAgentState>({
+      schema: OpenAIAgentStateSchema,
+    });
 
     // Model step: call the AI model
-    workflow.addNode(MODEL_STEP, async (state: OpenAIAgenState) => {
+    workflow.addNode(MODEL_STEP, async (state: OpenAIAgentState) => {
       const response = await this.model.invoke(
         state.messages,
         this.toolRegistry.toDefinitions()
@@ -77,7 +85,7 @@ export class OpenAIAgent implements Agent<OpenAIAgenState> {
     });
 
     // Function step: execute function calls
-    workflow.addNode(FUNCTION_STEP, async (state: OpenAIAgenState) => {
+    workflow.addNode(FUNCTION_STEP, async (state: OpenAIAgentState) => {
       const functionCallOutputs: FunctionCallOutputMessage[] = [];
 
       // Find all function call messages since the last function step
@@ -139,7 +147,7 @@ export class OpenAIAgent implements Agent<OpenAIAgenState> {
     return workflow.compile();
   }
 
-  initialState(input: string): OpenAIAgenState {
+  initialState(input: string): OpenAIAgentState {
     return {
       iteration: 0,
       messages: [
@@ -149,7 +157,7 @@ export class OpenAIAgent implements Agent<OpenAIAgenState> {
     };
   }
 
-  toWorkflow(): CompiledWorkflow<OpenAIAgenState> {
+  toWorkflow(): CompiledWorkflow<OpenAIAgentState> {
     return this.workflow;
   }
 }

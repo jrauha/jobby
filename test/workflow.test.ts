@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import * as z from "zod";
 import {
   Workflow,
   WorkflowRunner,
@@ -8,10 +9,13 @@ import {
   START,
 } from "../src/workflow";
 
+// Permissive schema that accepts any object shape
+const ANY = z.record(z.string(), z.unknown());
+
 describe("Workflow", () => {
   describe("compile", () => {
     it("should autowire nodes without outgoing edges to END", () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const lone = async () => ({ done: true });
 
       workflow.addNode("LONE", lone).addEdge("__START__", "LONE");
@@ -23,7 +27,7 @@ describe("Workflow", () => {
     });
 
     it("should produce snapshot of the original workflow", () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const a = async () => ({ a: 1 });
       const b = async () => ({ b: 2 });
 
@@ -47,7 +51,7 @@ describe("Workflow", () => {
 
   describe("addNode", () => {
     it("should add a node to the workflow", () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const nodeFn = async () => ({ result: 42 });
 
       workflow.addNode("test_node", nodeFn);
@@ -57,7 +61,7 @@ describe("Workflow", () => {
     });
 
     it("should return workflow for chaining", () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const nodeFn = async () => ({ result: 42 });
 
       const result = workflow.addNode("test_node", nodeFn);
@@ -66,7 +70,7 @@ describe("Workflow", () => {
     });
 
     it("should add multiple nodes", () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const node1 = async () => ({ a: 1 });
       const node2 = async () => ({ b: 2 });
 
@@ -76,7 +80,7 @@ describe("Workflow", () => {
     });
 
     it("should throw error when adding a node with duplicate id", () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const nodeFn = async () => ({});
 
       workflow.addNode("duplicate_node", nodeFn);
@@ -89,7 +93,7 @@ describe("Workflow", () => {
 
   describe("addEdge", () => {
     it("should add an edge between two nodes", () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const node1 = async () => ({});
       const node2 = async () => ({});
 
@@ -100,7 +104,7 @@ describe("Workflow", () => {
     });
 
     it("should throw error if nodes do not exist", () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
 
       expect(() => {
         workflow.addEdge("nonexistent_from", "nonexistent_to");
@@ -110,7 +114,10 @@ describe("Workflow", () => {
     });
 
     it("should return workflow for chaining", () => {
-      const workflow = new Workflow().addNode("first_node", async () => ({}));
+      const workflow = new Workflow({ schema: ANY }).addNode(
+        "first_node",
+        async () => ({})
+      );
 
       const result = workflow.addEdge(START, "first_node");
 
@@ -118,7 +125,7 @@ describe("Workflow", () => {
     });
 
     it("should add multiple edges from same node", () => {
-      const workflow = new Workflow()
+      const workflow = new Workflow({ schema: ANY })
         .addNode("node1", async () => ({}))
         .addNode("node2", async () => ({}));
 
@@ -130,7 +137,7 @@ describe("Workflow", () => {
 
   describe("addConditionalEdge", () => {
     it("should add a conditional edge between two nodes", () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const node1 = async () => ({});
       const node2 = async () => ({});
       const condition = () => "node2";
@@ -142,7 +149,7 @@ describe("Workflow", () => {
     });
 
     it("should throw error if nodes do not exist", () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const condition = () => "nonexistent_to";
 
       expect(() => {
@@ -157,7 +164,7 @@ describe("Workflow", () => {
     });
 
     it("should return workflow for chaining", () => {
-      const workflow = new Workflow()
+      const workflow = new Workflow({ schema: ANY })
         .addNode("first_node", async () => ({}))
         .addNode("second_node", async () => ({}));
 
@@ -177,7 +184,7 @@ describe("Workflow", () => {
 describe("WorkflowRunner", () => {
   describe("run", () => {
     it("should execute a simple linear workflow", async () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const node1 = async () => ({
         step1: "completed",
       });
@@ -200,7 +207,7 @@ describe("WorkflowRunner", () => {
     });
 
     it("should execute nodes in correct order", async () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const executionOrder: string[] = [];
 
       const node1 = async () => {
@@ -225,13 +232,13 @@ describe("WorkflowRunner", () => {
         .addEdge("node2", "node3")
         .addEdge("node3", "__END__");
 
-      await WorkflowRunner.run(workflow);
+      await WorkflowRunner.run(workflow, {});
 
       expect(executionOrder).toEqual(["node1", "node2", "node3"]);
     });
 
     it("should handle synchronous node functions", async () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const syncNode = (state: Record<string, unknown>) => ({
         ...state,
         syncResult: "success",
@@ -242,13 +249,13 @@ describe("WorkflowRunner", () => {
         .addEdge("__START__", "sync_node")
         .addEdge("sync_node", "__END__");
 
-      const result = await WorkflowRunner.run(workflow);
+      const result = await WorkflowRunner.run(workflow, {});
 
       expect(result.syncResult).toBe("success");
     });
 
     it("should pass state between nodes", async () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const node1 = async (state: Record<string, unknown>) => ({
         ...state,
         counter: 1,
@@ -271,13 +278,13 @@ describe("WorkflowRunner", () => {
         .addEdge("node2", "node3")
         .addEdge("node3", "__END__");
 
-      const result = await WorkflowRunner.run(workflow);
+      const result = await WorkflowRunner.run(workflow, {});
 
       expect(result.counter).toBe(4); // (1 + 1) * 2
     });
 
     it("should handle multiple children from one node", async () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const executionOrder: string[] = [];
 
       const node1 = async (state: Record<string, unknown>) => {
@@ -303,7 +310,7 @@ describe("WorkflowRunner", () => {
         .addEdge("node2", "__END__")
         .addEdge("node3", "__END__");
 
-      await WorkflowRunner.run(workflow);
+      await WorkflowRunner.run(workflow, {});
 
       // node1 should execute first, then node2 and node3 in insertion order
       expect(executionOrder[0]).toBe("node1");
@@ -313,7 +320,7 @@ describe("WorkflowRunner", () => {
     });
 
     it("should handle async conditions", async () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
       const executionOrder: string[] = [];
 
       const node1 = async () => {
@@ -337,13 +344,13 @@ describe("WorkflowRunner", () => {
         })
         .addEdge("node2", "__END__");
 
-      await WorkflowRunner.run(workflow);
+      await WorkflowRunner.run(workflow, {});
 
       expect(executionOrder).toEqual(["node1", "node2"]);
     });
 
     it("should execute branching workflow based on conditions", async () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
 
       const checkValue = async () => {
         return { value: 7 };
@@ -367,13 +374,13 @@ describe("WorkflowRunner", () => {
         )
         .addEdge("high", "__END__");
 
-      const result = await WorkflowRunner.run(workflow);
+      const result = await WorkflowRunner.run(workflow, {});
 
       expect(result.result).toBe("high");
     });
 
     it("should emit workflow start and end events", async () => {
-      const workflow = new Workflow();
+      const workflow = new Workflow({ schema: ANY });
 
       const node = async (state: Record<string, unknown>) => ({
         ...state,
@@ -405,11 +412,33 @@ describe("WorkflowRunner", () => {
       expect(actions[0]).toBe("WORKFLOW_START");
       expect(actions[actions.length - 1]).toBe("WORKFLOW_END");
     });
+
+    it("should validate initial state against workflow schema", async () => {
+      const schema = z.object({ seen: z.boolean() });
+      const workflow = new Workflow({ schema: schema });
+
+      const passthrough = async (state: z.infer<typeof schema>) => ({
+        ...state,
+        seen: true,
+      });
+
+      workflow
+        .addNode("passthrough", passthrough)
+        .addEdge("__START__", "passthrough")
+        .addEdge("passthrough", "__END__");
+
+      await expect(
+        WorkflowRunner.run(workflow, { wrong: "type" } as unknown as Record<
+          string,
+          unknown
+        >)
+      ).rejects.toThrow();
+    });
   });
 });
 
 it("should run a workflow with initial state", async () => {
-  const workflow = new Workflow();
+  const workflow = new Workflow({ schema: ANY });
   const node1 = async () => ({
     processed: true,
   });
@@ -425,7 +454,7 @@ it("should run a workflow with initial state", async () => {
 });
 
 it("should run a workflow without initial state", async () => {
-  const workflow = new Workflow();
+  const workflow = new Workflow({ schema: ANY });
   const node1 = async () => ({
     output: "generated",
   });
@@ -435,13 +464,15 @@ it("should run a workflow without initial state", async () => {
     .addEdge("__START__", "node1")
     .addEdge("node1", "__END__");
 
-  const result = await WorkflowRunner.run(workflow);
+  const result = await WorkflowRunner.run(workflow, {});
 
   expect(result.output).toBe("generated");
 });
 
 it("should handle complex workflow execution", async () => {
-  const workflow = new Workflow();
+  const workflow = new Workflow({
+    schema: ANY,
+  });
 
   const fetchData = async () => ({
     data: "raw_data",
@@ -464,7 +495,7 @@ it("should handle complex workflow execution", async () => {
     .addEdge("process", "save")
     .addEdge("save", "__END__");
 
-  const result = await WorkflowRunner.run(workflow);
+  const result = await WorkflowRunner.run(workflow, {});
   expect(result.saved).toBe(true);
 });
 

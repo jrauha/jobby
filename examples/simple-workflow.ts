@@ -1,18 +1,19 @@
 import { END, Workflow, WorkflowRunner } from "../src";
+import { z } from "zod";
 
-type WorkflowState = {
-  a: number;
-  b: number;
-  sum?: number;
-  sqrt?: number;
-};
+const WorkflowState = z.object({
+  a: z.number(),
+  b: z.number(),
+  sum: z.number().optional(),
+  sqrt: z.number().optional(),
+});
 
 async function main() {
   // Define a simple workflow:
   // 1. Sum two numbers (a + b)
   // 2. If sum >= 0, compute square root of sum
   // 3. Else, end workflow
-  const simpleWorkflow = new Workflow<WorkflowState>()
+  const simpleWorkflow = new Workflow({ schema: WorkflowState })
     .addNode("sum_step", async (state) => {
       return {
         ...state,

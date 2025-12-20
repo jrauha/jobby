@@ -1,4 +1,5 @@
 import { InMemoryStore } from "./store";
+import * as z from "zod";
 import type {
   CompiledWorkflow,
   Edge,
@@ -104,10 +105,12 @@ export class Workflow<
 > implements WorkflowGraph<S> {
   private nodes: Map<NodeId, WorkflowNodeFn<S>> = new Map();
   private edges: Map<NodeId, (Edge | EdgeWithCondition<S>)[]> = new Map();
+  public readonly schema: z.ZodType<S>;
 
-  constructor() {
+  constructor(options: { schema: z.ZodType<S> }) {
     this.addNode(START, async (s) => s);
     this.addNode(END, async (s) => s);
+    this.schema = options.schema;
   }
 
   addNode(id: NodeId, fn: WorkflowNodeFn<S>): this {
@@ -164,6 +167,10 @@ export class Workflow<
     return this.nodes.get(id);
   }
 
+  getInputSchema(): z.ZodType<S> {
+    return this.schema;
+  }
+
   compile(): CompiledWorkflow<S> {
     if (!this.nodes.has(START)) {
       throw new Error("Workflow is missing START node");
@@ -195,6 +202,7 @@ export class Workflow<
       getNodes: () => nodesSnapshot.slice(),
       getEdges: () => new Map(edgesSnapshot),
       getNode: (id: NodeId) => nodesMapSnapshot.get(id),
+      schema: this.schema,
       __compiled: COMPILED_BRAND,
     };
 
@@ -205,7 +213,7 @@ export class Workflow<
 export class WorkflowRunner {
   static async run<S extends WorkflowState = WorkflowState>(
     workflow: CompiledWorkflow<S> | Workflow<S>,
-    initial: S = {} as S,
+    initial: unknown,
     options: {
       onWorkflowEvent?: (
         state: WorkflowStoreState<S>,
@@ -213,17 +221,28 @@ export class WorkflowRunner {
       ) => void;
     } = {}
   ): Promise<S> {
+    const compiledWorkflow = isWorkflowCompiled<S>(workflow)
+      ? workflow
+      : workflow.compile();
+
+    const schema = compiledWorkflow.schema;
+    let parsedInitial: S;
+    try {
+      parsedInitial = schema.parse(initial);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      throw new Error(
+        `Workflow initial input does not match input schema: ${message}`
+      );
+    }
+
     const store = new InMemoryStore<WorkflowStoreState<S>, WorkflowAction<S>>(
       workflowReducer<S>,
       {
         status: "idle",
-        nodes: { [START]: initial },
+        nodes: { [START]: parsedInitial },
       }
     );
-
-    const compiledWorkflow = isWorkflowCompiled<S>(workflow)
-      ? workflow
-      : workflow.compile();
 
     if (options.onWorkflowEvent) {
       store.subscribe(options.onWorkflowEvent);
@@ -231,7 +250,7 @@ export class WorkflowRunner {
 
     store.dispatch({ type: "WORKFLOW_START" });
 
-    const queue: Array<[NodeId, S]> = [[START, initial]];
+    const queue: Array<[NodeId, S]> = [[START, parsedInitial]];
     const edges = compiledWorkflow.getEdges();
 
     while (queue.length) {
