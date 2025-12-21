@@ -1,14 +1,14 @@
-import OpenAI from "openai";
+import OpenAI, { ClientOptions } from "openai";
 import { AIModel, OpenAIMessage, OpenAIToolDef } from "./types";
 
 export class OpenAIModel implements AIModel<OpenAIMessage> {
   private client: OpenAI;
   public readonly model: string;
 
-  constructor(model: string) {
+  constructor(model: string, options?: ClientOptions) {
     this.model = model;
     this.client = new OpenAI({
-      apiKey: process.env["OPENAI_API_KEY"],
+      ...options,
     });
   }
 
