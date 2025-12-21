@@ -29,7 +29,7 @@ export type OpenAIAgentState = {
 };
 
 export const OpenAIAgentStateSchema = z.object({
-  iteration: z.number().min(0),
+  iteration: z.number().min(0).optional().default(0),
   messages: z.array(z.any()),
 });
 
